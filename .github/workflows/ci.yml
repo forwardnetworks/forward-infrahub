@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor and the ceiling. infrahub-sync supports neither below 3.10
+        # nor 3.14, and the floor is what the type checker targets.
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups --python ${{ matrix.python }}
+      - name: Lint
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Types
+        run: uv run mypy
+      - name: Tests
+        run: uv run pytest -q
+
+  environment:
+    # The bundled queries and the identity rules are checked without a network,
+    # so a change to either fails here rather than during somebody's sync.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+      - name: Query contracts
+        run: uv run forward-infrahub check-contracts
+      - name: Package builds and ships its queries
+        run: |
+          uv build
+          uv run python - <<'PY'
+          import glob, zipfile
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          queries = sum(1 for n in names if n.endswith(".nqe"))
+          assert queries == 15, f"expected 15 bundled queries in the wheel, found {queries}"
+          assert any(n.endswith("schemas/forward_cloud.yml") for n in names), "schema missing"
+          assert any(n.endswith("entry_points.txt") for n in names), "entry point missing"
+          print(f"wheel carries {queries} queries, the schema and the entry point")
+          PY
