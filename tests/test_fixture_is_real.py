@@ -13,20 +13,26 @@ import json
 from typing import Any
 
 import pytest
-from forward_sdk.models import DeviceType, Vendor, VendorOs
+
+from forward_infrahub.nqe_types import DEVICE_TYPE, OS, VENDOR, nqe_members
 
 from .conftest import FIXTURE
 
-#: Column to the enum whose members it is drawn from. ``toString`` renders an
-#: enum as ``Type.MEMBER``, so a prefix is stripped before comparing.
-ENUM_COLUMNS: list[tuple[str, str, Any]] = [
-    ("forward_manufacturers", "name", Vendor),
-    ("forward_platforms", "name", VendorOs),
-    ("forward_platforms", "manufacturer", Vendor),
-    ("forward_device_types", "manufacturer", Vendor),
-    ("forward_devices", "vendor", Vendor),
-    ("forward_devices", "device_type", DeviceType),
-    ("forward_devices", "platform", VendorOs),
+#: Column to the NQE type whose members it is drawn from. ``toString`` renders
+#: an enum as ``Type.MEMBER``, so a prefix is stripped before comparing.
+#:
+#: These are NQE types, not the SDK enums of the same name. The SDK models the
+#: REST schema, which for DeviceType is a different set entirely, so checking a
+#: fixture against it would have asked whether the rows are plausible in a
+#: namespace they never came from.
+ENUM_COLUMNS: list[tuple[str, str, str]] = [
+    ("forward_manufacturers", "name", VENDOR),
+    ("forward_platforms", "name", OS),
+    ("forward_platforms", "manufacturer", VENDOR),
+    ("forward_device_types", "manufacturer", VENDOR),
+    ("forward_devices", "vendor", VENDOR),
+    ("forward_devices", "device_type", DEVICE_TYPE),
+    ("forward_devices", "platform", OS),
 ]
 
 
@@ -36,21 +42,17 @@ def rows() -> dict[str, Any]:
     return loaded
 
 
-def member_names(enum_cls: Any) -> set[str]:
-    return {str(member.value).casefold() for member in enum_cls}
-
-
-@pytest.mark.parametrize(("table", "column", "enum_cls"), ENUM_COLUMNS)
+@pytest.mark.parametrize(("table", "column", "enum_type"), ENUM_COLUMNS)
 def test_enum_columns_hold_real_members(
-    rows: dict[str, Any], table: str, column: str, enum_cls: Any
+    rows: dict[str, Any], table: str, column: str, enum_type: str
 ) -> None:
-    known = member_names(enum_cls)
+    known = {member.casefold() for member in nqe_members(enum_type)}
     for row in rows[table]:
         value = str(row[column])
         # Strip the Type. prefix that toString emits, where the query keeps it.
         bare = value.rsplit(".", 1)[-1]
         assert bare.casefold() in known, (
-            f"{table}.{column} is {value!r}, which is not a {enum_cls.__name__} "
+            f"{table}.{column} is {value!r}, which is not an NQE {enum_type} "
             "Forward can return, so any test reading it proves nothing"
         )
 

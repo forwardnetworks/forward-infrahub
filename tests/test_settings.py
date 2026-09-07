@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from forward_sdk.models import DeviceType, Vendor
 
@@ -32,17 +34,15 @@ def test_a_misspelled_vendor_is_refused_with_a_suggestion() -> None:
         AdapterSettings(device_vendors=["cicso"])
 
 
-def test_an_unknown_vendor_says_how_to_proceed() -> None:
-    """A vendor Forward added since this SDK release is the other cause.
+def test_an_unknown_vendor_says_where_the_list_came_from() -> None:
+    """A value with no member has two causes and the operator needs both.
 
-    The message names the SDK version its enum came from, so an operator can
-    tell a typo from a list that has fallen behind their server.
+    It is a typo, or Forward added the vendor after this list was recorded. The
+    message names the page the list was read from, which answers either.
     """
-    from forward_sdk import __version__ as sdk_version
-
-    with pytest.raises(ValueError, match="upgrade forward-sdk") as raised:
+    with pytest.raises(ValueError, match="type-vendor") as raised:
         AdapterSettings(device_vendors=["Vendor.NOPE"])
-    assert sdk_version in str(raised.value)
+    assert "REST schema" in str(raised.value)
 
 
 def test_models_are_not_checked_because_they_are_free_text() -> None:
@@ -64,7 +64,9 @@ def test_a_vendor_nqe_names_but_the_sdk_does_not_is_accepted() -> None:
 
     The SDK generates its enums from the REST schema, where this vendor is GD.
     A predicate is built from these names, so using the REST spelling would emit
-    a member NQE has no such thing as.
+    a member NQE has no such thing as. Confirmed live by the SDK maintainers:
+    Vendor.GENERAL_DYNAMICS is accepted, Vendor.GD fails as an unknown
+    alternative.
     """
     assert AdapterSettings(device_vendors=["general_dynamics"]).device_vendors == [
         "GENERAL_DYNAMICS"
@@ -72,23 +74,40 @@ def test_a_vendor_nqe_names_but_the_sdk_does_not_is_accepted() -> None:
     assert AdapterSettings(device_vendors=["azure"]).device_vendors == ["AZURE"]
 
 
+def test_the_member_lists_are_not_the_sdk_enums() -> None:
+    """They describe the NQE namespace, which the SDK does not model.
+
+    NQE's DeviceType says what a device does and has 16 members; the REST one
+    the SDK generates has 75 and includes cloud constructs. Deriving one from
+    the other is how the allowlist came to refuse valid values and accept
+    invalid ones at the same time.
+    """
+    from forward_infrahub.nqe_types import NQE_MEMBERS
+
+    assert NQE_MEMBERS["DeviceType"] != {member.value for member in DeviceType}
+    assert NQE_MEMBERS["Vendor"] != {member.value for member in Vendor}
+    assert len(NQE_MEMBERS["DeviceType"]) < len({member.value for member in DeviceType})
+
+
+def test_nqe_only_values_are_accepted() -> None:
+    """Values NQE has and the SDK does not must still be usable."""
+    assert AdapterSettings(device_types=["load_balancer"]).device_types == ["LOAD_BALANCER"]
+    assert AdapterSettings(device_types=["internet"]).device_types == ["INTERNET"]
+
+
 @pytest.mark.parametrize("rest_only", ["gd", "microsoft", "ibm"])
 def test_a_vendor_only_the_rest_schema_names_is_refused(rest_only: str) -> None:
     """Accepting it would build a predicate NQE rejects at compile time."""
-    with pytest.raises(ValueError, match="members this build knows"):
+    with pytest.raises(ValueError, match="NQE Vendor members"):
         AdapterSettings(device_vendors=[rest_only])
 
 
-def test_the_two_namespaces_do_not_claim_the_same_name() -> None:
-    """A name cannot be both NQE-only and REST-only; that would be a bad record."""
-    from forward_infrahub.nqe_types import NQE_ONLY_MEMBERS, REST_ONLY_MEMBERS
-
-    for enum_type, nqe_only in NQE_ONLY_MEMBERS.items():
-        assert not (nqe_only & REST_ONLY_MEMBERS.get(enum_type, frozenset()))
+@pytest.mark.parametrize("rest_only", ["aws_subnet", "azure_cloud"])
+def test_a_device_type_only_the_rest_schema_names_is_refused(rest_only: str) -> None:
+    with pytest.raises(ValueError, match="NQE DeviceType members"):
+        AdapterSettings(device_types=[rest_only])
 
 
-def test_rest_only_names_really_are_in_the_sdk_enum() -> None:
-    """So the correction shrinks if the SDK catches up, rather than going stale."""
-    from forward_infrahub.nqe_types import REST_ONLY_MEMBERS
-
-    assert REST_ONLY_MEMBERS["Vendor"] <= {member.value for member in Vendor}
+def test_the_error_points_at_the_page_the_list_came_from() -> None:
+    with pytest.raises(ValueError, match=re.escape("docs.fwd.app")):
+        AdapterSettings(device_vendors=["nope"])

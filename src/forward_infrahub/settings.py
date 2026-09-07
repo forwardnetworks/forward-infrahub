@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import os
 from difflib import get_close_matches
-from enum import Enum
 from typing import Any, Literal
 
 from forward_sdk import ForwardClient, ForwardConfigurationError
-from forward_sdk import __version__ as sdk_version
-from forward_sdk.models import DeviceType, Vendor
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forward_infrahub import __version__
-from forward_infrahub.nqe_types import nqe_members
+from forward_infrahub.nqe_types import DEVICE_TYPE, MEMBER_SOURCES, VENDOR, nqe_members
 from forward_infrahub.replay import ReplayClient
 from forward_infrahub.scope import scope_token
 
@@ -29,16 +26,16 @@ ENV_VERIFY_TLS = "FORWARD_VERIFY_TLS"
 QueryMode = Literal["auto", "published", "inline"]
 
 
-def canonical_enum_values(values: Any, enum_cls: type[Enum], setting: str) -> list[str]:
+def canonical_enum_values(values: Any, enum_type: str, setting: str) -> list[str]:
     """Map operator-written values onto the enum member names Forward compares.
 
     An allowlist is written by hand, so ``cisco``, ``CISCO`` and ``Vendor.CISCO``
-    all have to mean the same thing. The member names come from Forward's own
-    API description rather than from a rule about capitalisation, so a value
-    with no member is a typo and is refused here, before it becomes a query
-    that quietly matches nothing.
+    all have to mean the same thing. The member names come from the NQE
+    data-model reference rather than from a rule about capitalisation, so a
+    value with no member is refused here, before it becomes either a query that
+    quietly matches nothing or one Forward rejects outright.
     """
-    known = nqe_members(enum_cls.__name__, {member.value for member in enum_cls})
+    known = nqe_members(enum_type)
     canonical: list[str] = []
     for value in values or []:
         token = scope_token(value).upper()
@@ -48,11 +45,9 @@ def canonical_enum_values(values: Any, enum_cls: type[Enum], setting: str) -> li
             close = get_close_matches(token, sorted(known), n=3)
             hint = f" Did you mean {' or '.join(close)}?" if close else ""
             raise ValueError(
-                f"{setting}: {value!r} is not one of the {len(known)} "
-                f"{enum_cls.__name__} members this build knows.{hint} The list comes from "
-                f"forward-sdk {sdk_version}, corrected where NQE and the REST schema name a "
-                "value differently. If Forward added it since, check the NQE data-model "
-                "reference and upgrade forward-sdk."
+                f"{setting}: {value!r} is not one of the {len(known)} NQE {enum_type} "
+                f"members.{hint} The full list is at {MEMBER_SOURCES[enum_type]}; note that "
+                "it differs from the REST schema of the same name that forward-sdk models."
             )
         canonical.append(token)
     return canonical
@@ -129,12 +124,12 @@ class AdapterSettings(BaseModel):
     @field_validator("device_vendors")
     @classmethod
     def _known_vendors(cls, value: list[str]) -> list[str]:
-        return canonical_enum_values(value, Vendor, "device_vendors")
+        return canonical_enum_values(value, VENDOR, "device_vendors")
 
     @field_validator("device_types")
     @classmethod
     def _known_device_types(cls, value: list[str]) -> list[str]:
-        return canonical_enum_values(value, DeviceType, "device_types")
+        return canonical_enum_values(value, DEVICE_TYPE, "device_types")
 
     @field_validator("query_directory")
     @classmethod
