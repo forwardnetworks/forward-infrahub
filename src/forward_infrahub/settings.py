@@ -37,8 +37,12 @@ def canonical_enum_values(values: Any, enum_type: str, setting: str) -> list[str
     """
     known = nqe_members(enum_type)
     if not known:
-        # The data model does not describe this type. Not knowing its members
-        # is not evidence about a value, so take what we were given.
+        # Empty means the data model does not describe this type, rather than
+        # describing it as having no valid members: every one of the 59 types it
+        # carries has at least one, measured by the forward-sdk maintainers. So
+        # this is an absence of information, not a statement that nothing is
+        # valid, and refusing every value here would turn a gap in the data
+        # model into a hard failure.
         return [scope_token(value).upper() for value in values or [] if scope_token(value)]
     canonical: list[str] = []
     for value in values or []:
