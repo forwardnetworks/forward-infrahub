@@ -6,7 +6,14 @@ cannot be inferred from the SDK class that models the same field:
 inference is how platform names were briefly wrong, and it held for the two
 types that happened to be checked first, which is what made it convincing.
 
-Names are published, one page per type, under
+The names themselves come from ``forward_sdk.nqe.enums``, which forward-sdk
+generates from the NQE data model rather than from the REST schema its own
+models describe. This project used to transcribe them from the rendered
+documentation; both routes produced 130 identical names across Vendor,
+DeviceType and OS, and the generated one cannot go stale the way a transcript
+does.
+
+The pages remain the reference for a reader, one per type, under
 https://docs.fwd.app/latest/application/nqe/language/data-model/ (``type-os``,
 ``type-vendor``, and so on). So a name is looked up rather than guessed, and
 ``toString()`` on a real network confirms it rather than reveals it. There is
@@ -23,6 +30,8 @@ wrote the assumption.
 
 from __future__ import annotations
 
+from forward_sdk.nqe.enums import members
+
 #: NQE type name to how this project came to trust it.
 TYPE_SOURCES: dict[str, str] = {
     "Vendor": "NQE data-model reference type-vendor, and rendered by toString on a network",
@@ -32,65 +41,10 @@ TYPE_SOURCES: dict[str, str] = {
     "CloudType": "NQE data-model reference type-cloudtype",
 }
 
-#: The members of the NQE enums this project builds predicates from, recorded
-#: from their pages in the data-model reference.
-#:
-#: These are not derived from ``forward_sdk.models``. The SDK generates its
-#: enums from the REST schema, which is a different namespace with different
-#: contents, and the difference is not a rounding error: NQE's ``DeviceType``
-#: has 16 members describing what a device does, while the REST one has 75 and
-#: includes cloud constructs like ``AWS_SUBNET``. For ``Vendor`` the lists are
-#: close but disagree on three names, where NQE says ``AZURE`` and
-#: ``GENERAL_DYNAMICS`` and REST says ``MICROSOFT``, ``GD`` and ``IBM``.
-#:
-#: Member names are what a predicate is built from, so using the REST list
-#: refuses values that are valid here and accepts values Forward rejects.
-#: Measured against a live network: ``Vendor.GENERAL_DYNAMICS`` is accepted and
-#: ``Vendor.GD`` fails with "Unknown alternative GD".
-#:
-#: Read 2026-09-07 from
-#: https://docs.fwd.app/latest/application/nqe/language/data-model/type-vendor
-#: , .../type-devicetype and .../type-os. Refresh from there if Forward adds a
-#: value; the SDK gaining one is not evidence that NQE has.
-#:
-#: These lists are temporary. forward-sdk generates the same names from the NQE
-#: data model on its main branch, as ``forward_sdk.nqe.enums.members``, which
-#: is the same source these pages are rendered from and is regenerated with the
-#: rest of the vendored description. When that reaches a release, delete
-#: ``NQE_MEMBERS`` and call ``members()``: a generated list cannot go stale the
-#: way a transcribed one does. ``tests/test_nqe_types.py`` cross-checks the two
-#: whenever the installed SDK has it, so the swap is a deletion rather than a
-#: migration.
-NQE_MEMBERS: dict[str, frozenset[str]] = {
-    # A block of names, kept as written on the page so it can be diffed against it.
-    "Vendor": frozenset(
-        """A10 ALKIRA AMAZON ARISTA ARUBA AVAYA AVI_NETWORKS AZURE BLUECAT BROCADE
-        CHECKPOINT CISCO CITRIX CUMULUS DELL EDGE_CORE EXTREME F5 FORCEPOINT FORTINET
-        FORWARD_CUSTOM GENERAL_DYNAMICS GOOGLE HP HUAWEI JUNIPER LINUX_GENERIC NOKIA
-        PALO_ALTO_NETWORKS PENSANDO PICA8 RIVERBED SILVER_PEAK SYMANTEC T128 UNKNOWN
-        VERSA VIASAT VMWARE ZSCALER""".split()  # noqa: SIM905
-    ),
-    "OS": frozenset(
-        """ACOS ALKIRA_CXP APIC ARISTA_EOS ARUBA_AOS_CX ARUBA_SWITCH ARUBA_WIFI ASA AVAYA
-        AVAYA_ERS AVI_VANTAGE BLUECAT BLUECOAT BROCADE_SWITCH CHECKPOINT CHECKPOINT_MANAGER
-        CISCO_WIRELESS CLOUD_GENIX CLOUD_GENIX_PORTAL CUMULUS DELL_OS10 DELL_OS6 DELL_OS9
-        DELL_SONIC EDGE_CORE_SONIC ENCRYPTOR ENCS_NFV ESXI EXTREME_NOS F5 F5_OS_HYPERVISOR
-        FORCEPOINT FORTINET FXOS GENERAL_DYNAMICS_ENCRYPTOR HP_COMWARE HP_PROVISION HUAWEI
-        INTERNET_SERVICE INTRANET_SERVICE IOS IOS_XE IOS_XR JUNOS L2_VPN_SERVICE LINUX
-        LINUX_OVS_OFCTL MERAKI_MR MERAKI_MS MERAKI_MX MIST_AP MPLS_VPN_SERVICE NETSCALER
-        NETSCREEN NOKIA NXOS OTHER PAN_OS PENSANDO PICA8_OVS_OFCTL SG SILVER_PEAK
-        SILVER_PEAK_ORCHESTRATOR SRX T128 T128_CONDUCTOR UNKNOWN VELOCLOUD_EDGE
-        VELOCLOUD_GATEWAY VERSA VIASAT_ENCRYPTOR VIPTELA ZSCALER_APP_CONNECTOR
-        ZSCALER_ZPA""".split()  # noqa: SIM905
-    ),
-    "DeviceType": frozenset(
-        """CONTROLLER ENCRYPTOR FIREWALL INTERNET INTRANET L2_VPN L3_VPN LOAD_BALANCER
-        MISSING_PEER OTHER ROUTER SD_WAN SWITCH WAN_CIRCUIT WAN_OPTIMIZER
-        WIFI_ACCESS_POINT""".split()  # noqa: SIM905
-    ),
-}
-
-#: Where each list was read from, so a refresher knows what to open.
+#: Where each type's members are documented, for an operator who hits a value
+#: this build does not know. The SDK generates the names, so it is the source
+#: for what is accepted; this is the source for what exists, which is what
+#: somebody needs when a legitimately new value is refused.
 MEMBER_SOURCES: dict[str, str] = {
     "Vendor": "https://docs.fwd.app/latest/application/nqe/language/data-model/type-vendor",
     "DeviceType": (
@@ -101,8 +55,14 @@ MEMBER_SOURCES: dict[str, str] = {
 
 
 def nqe_members(enum_type: str) -> frozenset[str]:
-    """The member names NQE accepts for a type."""
-    return NQE_MEMBERS[enum_type]
+    """The member names NQE accepts for a type.
+
+    Generated by forward-sdk from the NQE data model, which is the namespace a
+    predicate runs in. Empty means the data model does not describe the type,
+    and a caller should then accept whatever it was given rather than refuse
+    everything: not knowing a type's members is not evidence about a value.
+    """
+    return members(enum_type)
 
 
 VENDOR = "Vendor"

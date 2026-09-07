@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
-from difflib import get_close_matches
 from typing import Any, Literal
 
 from forward_sdk import ForwardClient, ForwardConfigurationError
+from forward_sdk.nqe.enums import suggest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forward_infrahub import __version__
@@ -36,13 +36,17 @@ def canonical_enum_values(values: Any, enum_type: str, setting: str) -> list[str
     quietly matches nothing or one Forward rejects outright.
     """
     known = nqe_members(enum_type)
+    if not known:
+        # The data model does not describe this type. Not knowing its members
+        # is not evidence about a value, so take what we were given.
+        return [scope_token(value).upper() for value in values or [] if scope_token(value)]
     canonical: list[str] = []
     for value in values or []:
         token = scope_token(value).upper()
         if not token:
             continue
         if token not in known:
-            close = get_close_matches(token, sorted(known), n=3)
+            close = suggest(enum_type, token)
             hint = f" Did you mean {' or '.join(close)}?" if close else ""
             raise ValueError(
                 f"{setting}: {value!r} is not one of the {len(known)} NQE {enum_type} "

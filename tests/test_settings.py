@@ -74,19 +74,17 @@ def test_a_vendor_nqe_names_but_the_sdk_does_not_is_accepted() -> None:
     assert AdapterSettings(device_vendors=["azure"]).device_vendors == ["AZURE"]
 
 
-def test_the_member_lists_are_not_the_sdk_enums() -> None:
-    """They describe the NQE namespace, which the SDK does not model.
-
-    NQE's DeviceType says what a device does and has 16 members; the REST one
-    the SDK generates has 75 and includes cloud constructs. Deriving one from
-    the other is how the allowlist came to refuse valid values and accept
-    invalid ones at the same time.
+def test_validation_uses_the_nqe_namespace_not_the_rest_one() -> None:
+    """NQE's DeviceType says what a device does and has 16 members; the REST one
+    the SDK models has 75 and includes cloud constructs. Deriving one from the
+    other is how the allowlist came to refuse valid values and accept invalid
+    ones at the same time.
     """
-    from forward_infrahub.nqe_types import NQE_MEMBERS
+    from forward_infrahub.nqe_types import DEVICE_TYPE, VENDOR, nqe_members
 
-    assert NQE_MEMBERS["DeviceType"] != {member.value for member in DeviceType}
-    assert NQE_MEMBERS["Vendor"] != {member.value for member in Vendor}
-    assert len(NQE_MEMBERS["DeviceType"]) < len({member.value for member in DeviceType})
+    assert nqe_members(DEVICE_TYPE) != {member.value for member in DeviceType}
+    assert nqe_members(VENDOR) != {member.value for member in Vendor}
+    assert len(nqe_members(DEVICE_TYPE)) < len({member.value for member in DeviceType})
 
 
 def test_nqe_only_values_are_accepted() -> None:
