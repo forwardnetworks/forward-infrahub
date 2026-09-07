@@ -73,9 +73,19 @@ class AdapterSettings(BaseModel):
     primary_address_heuristic: bool = True
 
     replay_fixture: str = ""
+    # Where the incremental baseline is kept. Defaults to the directory
+    # infrahub-sync already uses for its own run cache.
+    cache_directory: str = ".infrahub-sync-cache"
 
     @field_validator(
-        "url", "username", "password", "network_id", "snapshot_id", "replay_fixture", mode="before"
+        "url",
+        "username",
+        "password",
+        "network_id",
+        "snapshot_id",
+        "replay_fixture",
+        "cache_directory",
+        mode="before",
     )
     @classmethod
     def _expand_env(cls, value: Any) -> Any:

@@ -70,7 +70,8 @@ def audit(
         if match is None:
             entries.append(AuditEntry(filename, path, MISSING))
             continue
-        committed = getattr(match, "source", None) or getattr(match, "source_code", None)
+        # Populated only because the lookup asked for it; None otherwise.
+        committed = match.source
         if not committed:
             entries.append(AuditEntry(filename, path, UNAVAILABLE, "no source returned"))
             continue

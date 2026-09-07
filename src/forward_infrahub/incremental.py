@@ -101,14 +101,16 @@ def diff_rows(
                 f"query {query.label!r} is not published, so it cannot be diffed"
             )
         try:
-            entries = client.nqe.diff(baseline_snapshot_id, snapshot_id, query.ref)
+            entries = client.nqe.diff(query.ref, before=baseline_snapshot_id, after=snapshot_id)
         except ForwardError as exc:
             raise ForwardIncrementalError(
                 f"diff of {query.label!r} between {baseline_snapshot_id} and {snapshot_id} "
                 f"failed: {exc}"
             ) from exc
         for entry in entries:
-            after = entry.get("after")
-            if isinstance(after, dict) and after:
-                rows.append(dict(after))
+            # Presence of `after` is what distinguishes an added or changed row
+            # from a deleted one, rather than the entry's type, because
+            # infrahub-sync finds deletions by comparing against its own cache.
+            if entry.after:
+                rows.append(dict(entry.after))
     return rows

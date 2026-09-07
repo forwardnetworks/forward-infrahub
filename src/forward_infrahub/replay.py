@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from forward_sdk import ForwardNotFoundError
+from forward_sdk.models import NqeDiffEntry
 from forward_sdk.nqe import QueryRef
 
 from forward_infrahub.queries import (
@@ -85,12 +86,12 @@ class _ReplayNqe:
         return _ReplayExecution(self._client.tables.get(stem, []))
 
     def diff(
-        self, before_snapshot_id: str, after_snapshot_id: str, query: QueryRef | str, **_: Any
-    ) -> list[dict[str, Any]]:
+        self, query: QueryRef | str, *, before: str, after: str, **_: Any
+    ) -> list[NqeDiffEntry]:
         ref = query if isinstance(query, QueryRef) else QueryRef.inline(str(query))
         stem = self._stem_for(ref)
-        self._client.calls.append(f"diff:{stem}:{before_snapshot_id}->{after_snapshot_id}")
-        return [dict(entry) for entry in self._client.diffs.get(stem, [])]
+        self._client.calls.append(f"diff:{stem}:{before}->{after}")
+        return [NqeDiffEntry.model_validate(entry) for entry in self._client.diffs.get(stem, [])]
 
 
 class _ReplaySnapshots:

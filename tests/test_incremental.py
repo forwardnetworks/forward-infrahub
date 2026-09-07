@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from forward_sdk import ForwardError
+from forward_sdk.models import NqeDiffEntry
 from forward_sdk.nqe import QueryRef
 
 from forward_infrahub.exceptions import ForwardIncrementalError
@@ -90,11 +91,11 @@ class FakeNqe:
         self._raises = raises
         self.calls: list[tuple[str, str]] = []
 
-    def diff(self, before: str, after: str, query: Any, **_: Any) -> list[dict[str, Any]]:
+    def diff(self, query: Any, *, before: str, after: str, **_: Any) -> list[NqeDiffEntry]:
         if self._raises:
             raise ForwardError("diff exploded")
         self.calls.append((before, after))
-        return self._entries
+        return [NqeDiffEntry.model_validate(entry) for entry in self._entries]
 
 
 class FakeClient:
@@ -136,3 +137,20 @@ def test_a_failed_diff_is_never_quietly_a_full_load() -> None:
             baseline_snapshot_id="snap-1",
             snapshot_id="snap-2",
         )
+
+
+def test_a_clean_load_records_a_baseline(adapter: Any, tmp_path: Path) -> None:
+    """Without a baseline no later run can diff, so the load must leave one."""
+    sidecar = BaselineSidecar.load(adapter._sidecar_path())
+    assert sidecar is not None
+    assert sidecar.snapshot_id == "snap-2"
+    assert sidecar.scope_fingerprint == adapter.scope_fingerprint
+
+
+def test_existing_ids_report_what_the_source_currently_has(adapter: Any) -> None:
+    assert set(adapter.list_existing_ids("DcimDevice")) == {"device-001", "device-002"}
+
+
+def test_two_syncs_keep_separate_baselines(adapter: Any) -> None:
+    """Two Forward networks into one Infrahub must not overwrite each other."""
+    assert adapter.config.name in adapter._sidecar_path().name

@@ -73,11 +73,16 @@ def example_config() -> SyncConfig:
 
 
 @pytest.fixture
-def replay_config(example_config: SyncConfig) -> SyncConfig:
+def replay_config(example_config: SyncConfig, tmp_path: Path) -> SyncConfig:
     """The example config, pointed at the row fixture instead of a live Forward."""
     settings = dict(example_config.source.settings or {})
     settings.update(
-        {"replay_fixture": str(FIXTURE), "network_id": "test-net", "url": "https://example.invalid"}
+        {
+            "replay_fixture": str(FIXTURE),
+            "network_id": "test-net",
+            "url": "https://example.invalid",
+            "cache_directory": str(tmp_path / "cache"),
+        }
     )
     example_config.source.settings = settings
     return example_config

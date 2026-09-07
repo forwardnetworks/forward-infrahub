@@ -8,7 +8,11 @@ import pytest
 from forward_sdk import ForwardConfigurationError, ForwardError
 
 from forward_infrahub.settings import AdapterSettings
-from forward_infrahub.snapshot import completeness_from_metrics, resolve_snapshot
+from forward_infrahub.snapshot import (
+    collected_probe_scope,
+    completeness_from_metrics,
+    resolve_snapshot,
+)
 
 CLEAN = {"numCollectionFailureDevices": 0, "numProcessingFailureDevices": 0}
 FAILING = {"numCollectionFailureDevices": 3, "numProcessingFailureDevices": 0}
@@ -91,3 +95,36 @@ def test_a_network_with_no_processed_snapshot_is_an_error() -> None:
 def test_unavailable_metrics_leave_the_snapshot_unverified() -> None:
     resolved = resolve("snap-1", FakeSnapshots(raises=True))
     assert resolved.completeness.status == "unavailable"
+
+
+def test_an_unfiltered_probe_asks_nothing_extra() -> None:
+    assert collected_probe_scope(AdapterSettings()) == ""
+
+
+def test_the_probe_normalises_the_way_the_scope_does() -> None:
+    """A probe that matched differently would pick a snapshot the sync discards."""
+    scope = collected_probe_scope(
+        AdapterSettings(device_vendors=["Vendor.CISCO", "juniper"], device_models=["C9300"])
+    )
+    assert 'toLowerCase(replace(toString(device.platform.vendor), "Vendor.", ""))' in scope
+    assert '["cisco", "juniper"]' in scope
+    assert 'toLowerCase(device.platform.model) in ["c9300"]' in scope
+
+
+def test_probe_values_are_quoted_and_escaped() -> None:
+    scope = collected_probe_scope(AdapterSettings(device_models=['odd"name']))
+    assert '"odd\\"name"' in scope
+
+
+def test_the_probe_scopes_the_latest_collected_lookup() -> None:
+    """latestCollected must ask about this sync's devices, not the whole network."""
+    captured: dict[str, Any] = {}
+
+    class Recording(FakeSnapshots):
+        def latest_collected_id(self, network_id: str, **kwargs: Any) -> str:
+            captured.update(kwargs)
+            return "snap-collected"
+
+    settings = AdapterSettings(snapshot_id="latestCollected", device_vendors=["cisco"])
+    resolve_snapshot(FakeClient(Recording()), settings, "net-1")
+    assert "cisco" in captured["where"]

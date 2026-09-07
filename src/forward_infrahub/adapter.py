@@ -116,6 +116,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self._prepare()
         super().load()
         self._log_summary()
+        self.write_baseline()
 
     def _elements(self) -> list[SchemaMappingModel]:
         wanted = set(self.top_level)
@@ -417,6 +418,19 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         rows = self._prepare_diff_rows(ref, rows)
         yield from self._records_to_diffsync(element, model, rows)
 
+    def list_existing_ids(self, model_name: str) -> Iterator[str]:
+        """Every identity this source currently reports for a kind.
+
+        Used for delete detection between incremental runs: a row absent from
+        here is absent from Forward, not merely unchanged.
+        """
+        self._prepare()
+        element = self._element_for(model_name)
+        model: ModelClass = getattr(self, model_name)
+        rows = self._tables.get(model_name, [])
+        for payload in self._records_to_diffsync(element, model, rows):
+            yield str(model(**payload).get_unique_id())
+
     def _prepare_diff_rows(self, ref: TableRef, rows: list[Row]) -> list[Row]:
         rows = self.scoped(ref, rows)
         if ref.spec is not None and ref.spec.augment is not None:
@@ -424,10 +438,19 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         return rows
 
     def _sidecar_path(self) -> Path:
-        return Path(".infrahub-sync-cache") / "forward-baseline.json"
+        """Named after the sync, so two syncs in one directory keep their own."""
+        name = self.config.name or "forwardnetworks"
+        return Path(self.settings.cache_directory) / f"{name}-forward-baseline.json"
 
     def write_baseline(self) -> None:
-        """Record the snapshot a later incremental run may diff against."""
+        """Record the snapshot a later incremental run may diff against.
+
+        Written after a full load rather than after a successful sync, because
+        infrahub-sync has no post-sync hook. That is safe: a diff also needs
+        infrahub-sync's own cursor, which it persists only once a sync
+        succeeds. A run that loaded and then failed to write leaves this file
+        behind but no cursor, so the next run is a full one either way.
+        """
         assert self.snapshot is not None
         BaselineSidecar(
             snapshot_id=self.snapshot.id,
