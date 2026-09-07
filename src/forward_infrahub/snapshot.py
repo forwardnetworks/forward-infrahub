@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from forward_sdk import ForwardConfigurationError, ForwardError
-from forward_sdk.nqe.where import one_of
+from forward_sdk.nqe.where import enum_one_of, one_of
 
 from forward_infrahub.scope import scope_token
 from forward_infrahub.settings import LATEST_COLLECTED, LATEST_PROCESSED, AdapterSettings
@@ -75,29 +75,35 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
 
     Unscoped, the probe asks whether the network collected anything at all,
     which can answer yes for a snapshot in which every device this sync cares
-    about failed. The clauses mirror :class:`~forward_infrahub.scope.
-    ForwardDeviceScope` exactly: if the probe and the scope disagreed, the run
-    would pick a snapshot on the strength of devices it then discards.
+    about failed.
+
+    The clauses must select the same devices as
+    :class:`~forward_infrahub.scope.ForwardDeviceScope`, or the run would pick a
+    snapshot on the strength of devices it then discards. That parity is what
+    the token round-trip below is for: the scope compares case-folded tokens,
+    and upper-casing one returns the enum member name Forward compares against,
+    so ``cisco``, ``CISCO`` and ``Vendor.CISCO`` all reach the same clause.
+
+    Vendor and device type are enums, and NQE compares an enum against a named
+    constant rather than a string; the string form is rejected outright. Model
+    is a genuine string, so it uses the list form and is lower-cased to match
+    the scope's own comparison.
     """
-    fields = (
-        (
-            'toLowerCase(replace(toString(device.platform.vendor), "Vendor.", ""))',
-            settings.device_vendors,
-        ),
-        (
-            'toLowerCase(replace(toString(device.platform.deviceType), "DeviceType.", ""))',
-            settings.device_types,
-        ),
-        ("toLowerCase(device.platform.model)", settings.device_models),
+    clauses: list[str] = []
+    enum_fields = (
+        ("device.platform.vendor", "Vendor", settings.device_vendors),
+        ("device.platform.deviceType", "DeviceType", settings.device_types),
     )
-    clauses = []
-    for expression, values in fields:
-        # one_of, not membership: these fields hold a single value, and asking
-        # whether a scalar contains one would match nothing.
-        tokens = sorted({scope_token(value) for value in values if str(value).strip()})
-        predicate = one_of(expression, tokens)
+    for expression, enum_type, values in enum_fields:
+        members = sorted({scope_token(value).upper() for value in values if str(value).strip()})
+        predicate = enum_one_of(expression, enum_type, members)
         if predicate:
             clauses.append(f"where {predicate}")
+
+    models = sorted({scope_token(value) for value in settings.device_models if str(value).strip()})
+    model_predicate = one_of("toLowerCase(device.platform.model)", models)
+    if model_predicate:
+        clauses.append(f"where {model_predicate}")
     return "\n".join(clauses)
 
 

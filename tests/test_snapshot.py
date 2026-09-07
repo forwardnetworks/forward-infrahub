@@ -101,17 +101,34 @@ def test_an_unfiltered_probe_asks_nothing_extra() -> None:
     assert collected_probe_scope(AdapterSettings()) == ""
 
 
-def test_the_probe_normalises_the_way_the_scope_does() -> None:
-    """A probe that matched differently would pick a snapshot the sync discards."""
-    scope = collected_probe_scope(
-        AdapterSettings(device_vendors=["Vendor.CISCO", "juniper"], device_models=["C9300"])
+def test_an_enum_field_is_compared_to_a_named_constant() -> None:
+    """NQE rejects an enum compared against a string, whatever its spelling."""
+    scope = collected_probe_scope(AdapterSettings(device_vendors=["Vendor.CISCO", "juniper"]))
+    assert (
+        "where (device.platform.vendor == Vendor.CISCO"
+        " || device.platform.vendor == Vendor.JUNIPER)" in scope
     )
-    assert 'toLowerCase(replace(toString(device.platform.vendor), "Vendor.", ""))' in scope
-    assert '["cisco", "juniper"]' in scope
-    assert 'toLowerCase(device.platform.model) in ["c9300"]' in scope
+    assert '"cisco"' not in scope
 
 
-def test_probe_values_are_quoted_and_escaped() -> None:
+def test_a_string_field_uses_the_list_form() -> None:
+    scope = collected_probe_scope(AdapterSettings(device_models=["C9300"]))
+    assert 'where toLowerCase(device.platform.model) in ["c9300"]' in scope
+
+
+def test_every_spelling_of_a_vendor_reaches_one_clause() -> None:
+    """The scope compares case-folded tokens, so the probe must accept the same."""
+    expected = "where device.platform.vendor == Vendor.CISCO"
+    for spelling in ("cisco", "CISCO", "Vendor.CISCO", "Vendor.cisco"):
+        assert collected_probe_scope(AdapterSettings(device_vendors=[spelling])) == expected
+
+
+def test_an_underscored_member_survives_the_round_trip() -> None:
+    scope = collected_probe_scope(AdapterSettings(device_vendors=["palo_alto_networks"]))
+    assert scope == "where device.platform.vendor == Vendor.PALO_ALTO_NETWORKS"
+
+
+def test_probe_string_values_are_quoted_and_escaped() -> None:
     scope = collected_probe_scope(AdapterSettings(device_models=['odd"name']))
     assert '"odd\\"name"' in scope
 
@@ -127,4 +144,4 @@ def test_the_probe_scopes_the_latest_collected_lookup() -> None:
 
     settings = AdapterSettings(snapshot_id="latestCollected", device_vendors=["cisco"])
     resolve_snapshot(FakeClient(Recording()), settings, "net-1")
-    assert "cisco" in captured["where"]
+    assert "Vendor.CISCO" in captured["where"]
