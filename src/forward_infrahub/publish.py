@@ -59,21 +59,16 @@ def audit(
     for filename in filenames:
         path = library_path(directory, filename)
         try:
-            found = client.nqe.repo.queries(path=path, with_source=True)
+            committed = client.nqe.repo.source(path)
         except ForwardNotFoundError:
+            # Nothing at that path, or nothing readable there. Either way the
+            # answer for an operator is the same: publish it.
             entries.append(AuditEntry(filename, path, MISSING))
             continue
         except ForwardError as exc:
+            # We could not ask, which is different from having asked and
+            # found nothing.
             entries.append(AuditEntry(filename, path, UNAVAILABLE, str(exc)))
-            continue
-        match = next((q for q in found if getattr(q, "path", None) == path), None)
-        if match is None:
-            entries.append(AuditEntry(filename, path, MISSING))
-            continue
-        # Populated only because the lookup asked for it; None otherwise.
-        committed = match.source
-        if not committed:
-            entries.append(AuditEntry(filename, path, UNAVAILABLE, "no source returned"))
             continue
         if normalize_source(committed) == normalize_source(read_query_source(filename)):
             entries.append(AuditEntry(filename, path, MATCHED))

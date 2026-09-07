@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from forward_sdk import ForwardNotFoundError, ForwardServerError
 
 from forward_infrahub.cli import load_settings, main
-from forward_infrahub.publish import MATCHED, MISSING, STALE, audit, normalize_source
+from forward_infrahub.publish import (
+    MATCHED,
+    MISSING,
+    STALE,
+    UNAVAILABLE,
+    audit,
+    normalize_source,
+)
 from forward_infrahub.queries import QUERY_FILENAMES, library_path, read_query_source
 
 from .conftest import EXAMPLE_DIR
@@ -48,25 +57,19 @@ def test_source_comparison_ignores_trailing_whitespace() -> None:
     assert normalize_source("a") != normalize_source("b")
 
 
-class FakeQuery:
-    def __init__(self, path: str, source: str) -> None:
-        self.path = path
-        self.source = source
-
-
 class FakeRepo:
     def __init__(self, published: dict[str, str]) -> None:
         self._published = published
 
-    def queries(self, *, path: str, with_source: bool = False, **_: Any) -> list[FakeQuery]:
+    def source(self, path: str, **_: Any) -> str:
         if path not in self._published:
-            return []
-        return [FakeQuery(path, self._published[path])]
+            raise ForwardNotFoundError(f"no query at {path}", status=404)
+        return self._published[path]
 
 
 class FakeClient:
     def __init__(self, published: dict[str, str]) -> None:
-        self.nqe = type("Nqe", (), {"repo": FakeRepo(published)})()
+        self.nqe = SimpleNamespace(repo=FakeRepo(published))
 
 
 def test_audit_reports_a_query_that_was_never_published() -> None:
@@ -94,3 +97,17 @@ def test_audit_covers_every_bundled_query() -> None:
     entries = audit(FakeClient(published), "/dir")
     assert len(entries) == len(QUERY_FILENAMES)
     assert all(entry.ok for entry in entries)
+
+
+def test_audit_separates_cannot_ask_from_not_published() -> None:
+    """A transient failure is not evidence that a query is missing."""
+
+    class Unreachable(FakeRepo):
+        def source(self, path: str, **_: Any) -> str:
+            raise ForwardServerError("gateway timeout", status=502)
+
+    client = FakeClient({})
+    client.nqe.repo = Unreachable({})
+    entries = audit(client, "/dir", ["forward_devices.nqe"])
+    assert [e.status for e in entries] == [UNAVAILABLE]
+    assert not entries[0].ok
