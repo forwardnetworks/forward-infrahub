@@ -111,8 +111,16 @@ schema_mapping:
         reference: OrganizationManufacturer
 
   - name: LocationSite
+    # Forward returns the organisation's whole location catalogue, not the sites
+    # this network uses: on a 37-device network that is 402 locations, 389 of
+    # them empty. scope_devices lists the devices Forward placed at a site, so
+    # this keeps the ones actually in use. Remove the filter to import the full
+    # catalogue.
     mapping: nqe:locations
     identifiers: [name]
+    filters:
+      - field: scope_devices
+        operation: is_not_empty
     fields:
       - name: name
         mapping: name
@@ -222,8 +230,13 @@ schema_mapping:
 
   - name: IpamVLANGroup
     # One group per site, so a VLAN id is unique within the site that uses it.
+    # Filtered like LocationSite, since a group scoped to a site with no devices
+    # has nothing to hold.
     mapping: nqe:locations
     identifiers: [name]
+    filters:
+      - field: scope_devices
+        operation: is_not_empty
     fields:
       - name: name
         mapping: name

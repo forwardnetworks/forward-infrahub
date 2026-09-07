@@ -151,3 +151,19 @@ def test_every_recorded_type_is_used_somewhere() -> None:
 def test_every_type_records_where_its_name_came_from() -> None:
     assert all(source.strip() for source in TYPE_SOURCES.values())
     assert set(KNOWN_PREFIXES) == {f"{name}." for name in TYPE_SOURCES}
+
+
+def test_location_backed_kinds_filter_out_empty_sites() -> None:
+    """Forward returns the whole location catalogue, not this network's sites.
+
+    On a real 37-device network that is 402 locations, 389 of them holding no
+    devices, so importing them unfiltered fills Infrahub with sites that exist
+    only in Forward's address book.
+    """
+    config = yaml.safe_load((EXAMPLE_DIR / "config.yml").read_text())
+    for element in config["schema_mapping"]:
+        if element["mapping"] == "nqe:locations":
+            filters = element.get("filters") or []
+            assert any(
+                f["field"] == "scope_devices" and f["operation"] == "is_not_empty" for f in filters
+            ), f"{element['name']} would import every location Forward knows"
