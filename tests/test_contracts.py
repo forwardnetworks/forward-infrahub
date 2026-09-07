@@ -7,6 +7,13 @@ import re
 import yaml
 
 from forward_infrahub.contracts import QUERY_CONTRACT_FIELDS, check_contracts, primary_key_columns
+from forward_infrahub.nqe_types import (
+    DEVICE_TYPE,
+    KNOWN_PREFIXES,
+    OS,
+    TYPE_SOURCES,
+    VENDOR,
+)
 from forward_infrahub.queries import (
     QUERY_FILENAMES,
     all_query_sources,
@@ -100,47 +107,47 @@ def test_transforms_only_read_columns_that_exist() -> None:
     assert problems == []
 
 
-#: NQE type names read off ``toString()`` renderings on a real network.
-#: The NQE data model names its types independently of the REST schema, so a
-#: name cannot be inferred from the SDK class: ``device.platform.os`` is an
-#: ``OS`` in NQE and a ``VendorOs`` in the SDK. Inferring it that way is how
-#: the platform name was wrong, and the inference held for the two types that
-#: were checked first.
-MEASURED_TYPE_PREFIXES = {"Vendor.", "DeviceType.", "OS.", "NetworkInstanceType."}
-
-#: Assumed but never seen rendered. Each is a name that may not exist, in which
-#: case the replace does nothing and the prefix reaches Infrahub inside the
-#: value. Both sides of a reference use the same expression, so identities
-#: still match and a sync still works; the names are simply wrong. Confirm each
-#: against a live network and move it above, or correct it.
-UNVERIFIED_TYPE_PREFIXES = {"CloudType."}
-
-TYPE_PREFIX_RE = re.compile(r'replace\(toString\([^)]*\),\s*"([^"]*)"')
+#: A stripped prefix, ``"OS."``, or a member compared as a literal,
+#: ``"NetworkInstanceType.DEFAULT_INSTANCE"``. Both name an NQE type, and a
+#: wrong name fails differently but silently in each: the strip does nothing,
+#: while the comparison is against a string the field can never equal, so a
+#: `!=` test is always true and the rows it was meant to exclude come through.
+TYPE_NAME_RE = re.compile(r'"([A-Z][A-Za-z0-9]*)\.[A-Z_]*"')
 
 
-def stripped_prefixes() -> set[str]:
+def type_names_used() -> set[str]:
     return {
-        prefix
+        f"{name}."
         for filename in QUERY_FILENAMES
-        for prefix in TYPE_PREFIX_RE.findall(read_query_source(filename))
+        for name in TYPE_NAME_RE.findall(read_query_source(filename))
     }
 
 
-def test_no_query_strips_an_unconsidered_prefix() -> None:
-    """A prefix that never appears makes replace a silent no-op.
+def test_no_query_names_a_type_of_unknown_provenance() -> None:
+    """An NQE type name cannot be inferred, so each one records its source.
 
-    That is the failure this guards. The value still reaches Infrahub, still
-    round-trips, and is wrong in a way no offline test can see, because the
-    fixture that would catch it was written by whoever wrote the assumption.
-    A new prefix must be measured, or listed as unverified deliberately.
+    Getting one wrong is invisible offline: the value still reaches Infrahub and
+    still round-trips, and the fixture that would catch it was written by
+    whoever wrote the assumption, so it agrees.
     """
-    unconsidered = stripped_prefixes() - MEASURED_TYPE_PREFIXES - UNVERIFIED_TYPE_PREFIXES
-    assert unconsidered == set(), (
-        f"queries strip {sorted(unconsidered)}, which is neither measured nor listed as "
-        "unverified. Read the type name off a toString() rendering on a real network."
+    unknown = type_names_used() - KNOWN_PREFIXES
+    assert unknown == set(), (
+        f"queries name the NQE types {sorted(unknown)}, whose provenance is unrecorded. Look "
+        "each one up in the NQE data-model reference and record where it came from."
     )
 
 
-def test_the_unverified_list_still_describes_the_queries() -> None:
-    """So the list shrinks when a prefix is confirmed, rather than going stale."""
-    assert stripped_prefixes() >= UNVERIFIED_TYPE_PREFIXES
+def test_every_recorded_type_is_used_somewhere() -> None:
+    """So the record shrinks with the code rather than going stale.
+
+    A name reaches NQE either inside a query literal or as an argument to a
+    predicate builder from Python, so both are counted.
+    """
+    used = type_names_used() | {f"{name}." for name in (VENDOR, DEVICE_TYPE, OS)}
+    unused = KNOWN_PREFIXES - used
+    assert unused == set(), f"{sorted(unused)} is recorded but nothing uses it"
+
+
+def test_every_type_records_where_its_name_came_from() -> None:
+    assert all(source.strip() for source in TYPE_SOURCES.values())
+    assert set(KNOWN_PREFIXES) == {f"{name}." for name in TYPE_SOURCES}

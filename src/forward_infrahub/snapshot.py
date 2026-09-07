@@ -10,6 +10,7 @@ from typing import Any
 from forward_sdk import ForwardConfigurationError, ForwardError
 from forward_sdk.nqe.where import enum_one_of, one_of
 
+from forward_infrahub.nqe_types import DEVICE_TYPE, VENDOR
 from forward_infrahub.scope import scope_token
 from forward_infrahub.settings import LATEST_COLLECTED, LATEST_PROCESSED, AdapterSettings
 
@@ -90,8 +91,8 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
     """
     clauses: list[str] = []
     enum_fields = (
-        ("device.platform.vendor", "Vendor", settings.device_vendors),
-        ("device.platform.deviceType", "DeviceType", settings.device_types),
+        ("device.platform.vendor", VENDOR, settings.device_vendors),
+        ("device.platform.deviceType", DEVICE_TYPE, settings.device_types),
     )
     for expression, enum_type, values in enum_fields:
         predicate = enum_one_of(expression, enum_type, sorted(set(values)))
