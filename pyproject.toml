@@ -69,6 +69,9 @@ ignore = ["PLR0913", "PLR2004", "PLR0912", "PLR0915", "PLR0911", "RUF012"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR", "B011", "PLC0415"]
 "scripts/**" = ["PLR"]
+# Imports inside the probes: the point is to tolerate a missing dependency and
+# to read the installed version rather than one bound at import time.
+"src/forward_infrahub/environment.py" = ["PLC0415"]
 
 [tool.mypy]
 # No python_version pin: mypy runs on the interpreter in .venv. Pinning it to
@@ -79,6 +82,12 @@ strict = true
 warn_unreachable = true
 plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+# The probe deliberately builds a schema object without validation, to ask the
+# installed generator what it does rather than to read its source.
+module = ["forward_infrahub.environment"]
+disable_error_code = ["arg-type"]
 
 [[tool.mypy.overrides]]
 module = ["diffsync", "diffsync.*", "infrahub_sync", "infrahub_sync.*", "infrahub_sdk", "infrahub_sdk.*"]

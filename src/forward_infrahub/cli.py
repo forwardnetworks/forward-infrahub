@@ -21,6 +21,7 @@ import yaml
 
 from forward_infrahub import __version__
 from forward_infrahub.contracts import check_contracts
+from forward_infrahub.environment import check_environment
 from forward_infrahub.identity import check_identities
 from forward_infrahub.publish import MATCHED, audit, publish
 from forward_infrahub.queries import all_query_sources
@@ -48,6 +49,22 @@ def _client_and_settings(args: argparse.Namespace) -> tuple[Any, AdapterSettings
     if args.query_directory:
         settings = settings.model_copy(update={"query_directory": args.query_directory})
     return build_client(settings), settings
+
+
+def cmd_check_environment(args: argparse.Namespace) -> int:
+    """Report the known problems with the installed infrahub-sync."""
+    problems = check_environment()
+    for problem in problems:
+        print(problem)
+        print()
+    if problems:
+        print(
+            f"{len(problems)} problem(s) in infrahub-sync itself, not in this package. "
+            "A sync fails on the first attribute that is not text until they are patched."
+        )
+        return 1
+    print("infrahub-sync has neither of the problems this adapter knows about")
+    return 0
 
 
 def cmd_check_identities(args: argparse.Namespace) -> int:
@@ -161,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
             )
 
     add("check-contracts", cmd_check_contracts, "verify the bundled queries", needs_forward=False)
+    add(
+        "check-environment",
+        cmd_check_environment,
+        "report known problems in the installed infrahub-sync",
+        needs_forward=False,
+    )
     add(
         "check-identities",
         cmd_check_identities,

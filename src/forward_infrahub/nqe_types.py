@@ -35,10 +35,10 @@ from forward_sdk.nqe.enums import members
 #: NQE type name to how this project came to trust it.
 TYPE_SOURCES: dict[str, str] = {
     "Vendor": "NQE data-model reference type-vendor, and rendered by toString on a network",
-    "DeviceType": "rendered by toString on a network",
+    "DeviceType": "NQE data-model reference type-devicetype, and rendered on a network",
     "OS": "NQE data-model reference type-os, and rendered by toString on a network",
     "NetworkInstanceType": "NQE data-model reference type-networkinstancetype",
-    "CloudType": "NQE data-model reference type-cloudtype",
+    "CloudType": "NQE data-model reference type-cloudtype, and rendered on a network",
 }
 
 #: Where each type's members are documented, for an operator who hits a value
