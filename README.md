@@ -82,7 +82,8 @@ failed collection looks exactly like one that was decommissioned. Read
 `infrahub-sync` runs the sync. `forward-infrahub` does the things around it:
 
 ```bash
-forward-infrahub check-contracts                     # bundled queries are intact
+forward-infrahub check-contracts                      # bundled queries are intact
+forward-infrahub check-identities --config config.yml # mapping and Infrahub agree on identity
 forward-infrahub resolve-snapshot --config config.yml # which snapshot a run would use
 forward-infrahub publish-queries  --config config.yml # publish, enabling snapshot diffs
 forward-infrahub audit-queries    --config config.yml # library still matches the bundle

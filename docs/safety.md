@@ -53,6 +53,25 @@ A table that fails abandons the whole run. A partial load is indistinguishable
 from an upstream deletion, which is the one thing this design refuses to guess
 about.
 
+## Identity, and the failure that reports success
+
+A sync's identifiers decide which source rows are the same object. Infrahub
+resolves an upsert against a node's human-friendly id. When those disagree,
+nothing fails: rows Infrahub considers one node are written one after another,
+each overwriting the last, and every write is reported as a success.
+
+That is how a mapping loaded 127 VLANs and stored 57. `IpamVLAN` inherits an id
+of name alone, so VLANs sharing a name merged however they were scoped. The run
+was clean and the only symptom was a count nobody had a reason to check.
+
+```bash
+forward-infrahub check-identities --config config.yml
+```
+
+Run it after any change to `identifiers`, to a transform feeding a field in an
+id, or to the destination schema. It reads the live schema, so it answers for
+the Infrahub you are actually syncing into.
+
 ## The row-count guardrail, and narrowing a sync on purpose
 
 infrahub-sync compares each kind's row count against the last successful run

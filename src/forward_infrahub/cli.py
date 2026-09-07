@@ -10,15 +10,18 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import httpx
 import yaml
 
 from forward_infrahub import __version__
 from forward_infrahub.contracts import check_contracts
+from forward_infrahub.identity import check_identities
 from forward_infrahub.publish import MATCHED, audit, publish
 from forward_infrahub.queries import all_query_sources
 from forward_infrahub.settings import AdapterSettings, build_client
@@ -45,6 +48,38 @@ def _client_and_settings(args: argparse.Namespace) -> tuple[Any, AdapterSettings
     if args.query_directory:
         settings = settings.model_copy(update={"query_directory": args.query_directory})
     return build_client(settings), settings
+
+
+def cmd_check_identities(args: argparse.Namespace) -> int:
+    """Compare how the mapping identifies each kind with how Infrahub does."""
+    payload = yaml.safe_load(Path(args.config).read_text(encoding="utf-8")) or {}
+    address = args.infrahub_address or os.environ.get("INFRAHUB_ADDRESS")
+    if not address:
+        address = ((payload.get("destination") or {}).get("settings") or {}).get("url")
+    if not address:
+        raise SystemExit("no Infrahub address: pass --infrahub-address or set INFRAHUB_ADDRESS")
+    token = args.infrahub_token or os.environ.get("INFRAHUB_API_TOKEN", "")
+
+    response = httpx.get(
+        f"{address.rstrip('/')}/api/schema",
+        params={"branch": args.branch},
+        headers={"X-INFRAHUB-KEY": token} if token else {},
+        timeout=60,
+    )
+    response.raise_for_status()
+    checks = check_identities(response.json(), payload.get("schema_mapping") or [])
+    risky = [c for c in checks if c.merges]
+    for check in checks:
+        if check.merges or args.verbose:
+            print(check.summary)
+    if risky:
+        print(
+            f"\n{len(risky)} of {len(checks)} kinds would have rows written over each other. "
+            "This does not fail a sync; it loses data while reporting success."
+        )
+        return 1
+    print(f"all {len(checks)} kinds identify the same way here and in Infrahub")
+    return 0
 
 
 def cmd_check_contracts(args: argparse.Namespace) -> int:
@@ -126,6 +161,17 @@ def build_parser() -> argparse.ArgumentParser:
             )
 
     add("check-contracts", cmd_check_contracts, "verify the bundled queries", needs_forward=False)
+    add(
+        "check-identities",
+        cmd_check_identities,
+        "compare the mapping's identifiers with Infrahub's own",
+        needs_forward=False,
+    )
+    identities = subparsers.choices["check-identities"]
+    identities.add_argument("--config", type=Path, required=True, help="the sync config.yml")
+    identities.add_argument("--infrahub-address", help="default: INFRAHUB_ADDRESS, or the config")
+    identities.add_argument("--infrahub-token", help="default: INFRAHUB_API_TOKEN")
+    identities.add_argument("--branch", default="main")
     add("resolve-snapshot", cmd_resolve_snapshot, "show which snapshot a sync would use")
     add("audit-queries", cmd_audit_queries, "compare the library against the bundled queries")
     add("publish-queries", cmd_publish_queries, "publish the bundled queries to the library")
