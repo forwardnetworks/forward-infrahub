@@ -4,10 +4,22 @@
  * @contract-version v3-infrahub
  */
 
-isPrimaryInterface(name: String) =
-  name == "Loopback0" || name == "lo0" || name == "fxp0" ||
-  startsWith(name, "Management") || startsWith(name, "mgmt") ||
-  startsWith(name, "Mgmt") || startsWith(name, "MgmtEth");
+// NQE has no startsWith, and substring past the end is safe, but the length
+// guard keeps the comparison honest rather than relying on that.
+hasPrefix(value: String, prefix: String) =
+  length(value) >= length(prefix) && substring(value, 0, length(prefix)) == prefix;
+
+// Which interface carries a device's primary address is a convention, not a
+// fact Forward records, so this is a heuristic and is deliberately narrow:
+// naming a wrong address primary is worse than naming none. Covers the long
+// forms and the short ones (lo0, mgmt0) that real devices actually use.
+// Split in two so the name is lower-cased once: a function body is a single
+// expression here, with no let bindings to hold the result.
+isPrimaryLowerName(lower: String) =
+  lower == "lo0" || lower == "loopback0" || lower == "fxp0" ||
+  hasPrefix(lower, "management") || hasPrefix(lower, "mgmt");
+
+isPrimaryInterface(name: String) = isPrimaryLowerName(toLowerCase(name));
 
 subinterface_ipv4() =
   foreach device in network.devices
@@ -194,6 +206,9 @@ select distinct {
   host_ip: row.host_ip,
   prefix_length: row.prefix_length,
   description: join(" ", [row.device, row.interface]),
-  primary_of: if isPrimaryInterface(row.interface) then [row.device] else [] : List<String>,
+  // A comprehension rather than a conditional: NQE rejects an empty list
+  // literal outright ("Can't handle empty list literals now!"), so the empty
+  // case has to arise from a filter that excludes everything.
+  primary_of: (foreach d in [row.device] where isPrimaryInterface(row.interface) select d),
   status: "active"
 }
