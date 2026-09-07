@@ -1,0 +1,15 @@
+/**
+ * @intent Forward cloud accounts
+ * @description Provider-neutral cloud account rows as CloudAccount. cloud_type is
+ *   emitted as a bare token (aws, azure, gcp) rather than the rendered enum, because
+ *   child rows build their parent's identity from it and both sides must agree.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(cloud_type, account_id)
+foreach account in network.cloudAccounts
+select {
+  account_id: account.id,
+  name: if isPresent(account.name) && account.name != "" then account.name else account.id,
+  cloud_type: toLowerCase(replace(toString(account.cloudType), "CloudType.", ""))
+}

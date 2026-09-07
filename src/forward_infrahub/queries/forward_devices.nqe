@@ -1,0 +1,31 @@
+/**
+ * @intent Forward devices
+ * @description Device rows as DcimDevice. serial_number comes from the chassis component when Forward collected one; description carries vendor, model and OS so the node is readable without following relationships.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach device in network.devices
+where device.snapshotInfo.result == DeviceSnapshotResult.completed
+where device.platform.vendor != Vendor.FORWARD_CUSTOM
+let vendor = toString(device.platform.vendor)
+let model = if isPresent(device.platform.model) then device.platform.model else ""
+let platform = toString(device.platform.os)
+let os_version = if isPresent(device.platform.osVersion) then device.platform.osVersion else ""
+let chassis_serial = min(
+  foreach component in device.platform.components
+  where component.partType == DevicePartType.CHASSIS
+  where isPresent(component.serialNumber) && component.serialNumber != ""
+  select component.serialNumber
+)
+select {
+  name: device.name,
+  location: if isPresent(device.locationName) then device.locationName else "",
+  vendor: vendor,
+  device_type: toString(device.platform.deviceType),
+  model: model,
+  platform: platform,
+  os_version: os_version,
+  serial_number: if isPresent(chassis_serial) then chassis_serial else "",
+  description: join(" ", [vendor, model, platform, os_version])
+}

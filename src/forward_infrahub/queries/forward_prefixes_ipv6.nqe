@@ -1,0 +1,26 @@
+/**
+ * @intent Forward IPv6 prefixes
+ * @description Prefix rows as IpamPrefix. namespace is the network instance, which becomes the Infrahub IP namespace so the same subnet may exist in several VRFs; vrf_ref is empty for the default instance so the optional VRF relationship is simply unset.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(prefix, namespace)
+foreach device in network.devices
+where device.snapshotInfo.result == DeviceSnapshotResult.completed
+where device.platform.vendor != Vendor.FORWARD_CUSTOM
+foreach ni in device.networkInstances
+where isPresent(ni.afts?.ipv6Unicast?.ipEntries)
+foreach entry in ni.afts.ipv6Unicast.ipEntries
+where length(entry.prefix) > 0
+where length(entry.prefix) < 128
+let prefix = ipSubnet(networkAddress(entry.prefix), length(entry.prefix))
+let namespace = if ni.name != "default"
+  then if toString(ni.instanceType) != "NetworkInstanceType.DEFAULT_INSTANCE" then ni.name else "default"
+  else "default"
+select distinct {
+  namespace: namespace,
+  vrf_ref: if namespace != "default" then namespace else "",
+  prefix: prefix,
+  family: 6,
+  status: "active"
+}

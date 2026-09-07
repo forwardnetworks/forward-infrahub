@@ -1,0 +1,116 @@
+{
+  "snapshot_id": "snap-2",
+  "metrics": {
+    "numSuccessfulDevices": 2,
+    "numCollectionFailureDevices": 0,
+    "numProcessingFailureDevices": 0,
+    "numCollectionFailureEndpoints": 0,
+    "numProcessingFailureEndpoints": 0
+  },
+  "forward_manufacturers": [
+    {"name": "Vendor.EXAMPLE", "scope_devices": ["device-001", "device-002"]}
+  ],
+  "forward_platforms": [
+    {"name": "EXAMPLE_OS", "manufacturer": "Vendor.EXAMPLE", "scope_devices": ["device-001", "device-002"]}
+  ],
+  "forward_device_types": [
+    {"manufacturer": "Vendor.EXAMPLE", "name": "MODEL-A", "scope_devices": ["device-001", "device-002"]}
+  ],
+  "forward_locations": [
+    {"name": "500 W 30TH ST", "city": "Example City", "country": "United States",
+     "description": "Example City, United States", "physical_address": "Example City, United States",
+     "scope_devices": ["device-001"]},
+    {"name": "500 W 30TH STREET", "city": "Example City", "country": "United States",
+     "description": "Example City, United States", "physical_address": "Example City, United States",
+     "scope_devices": ["device-002"]}
+  ],
+  "forward_devices": [
+    {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
+     "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+     "os_version": "1.2.3", "serial_number": "SERIAL-001",
+     "description": "Vendor.EXAMPLE MODEL-A EXAMPLE_OS 1.2.3"},
+    {"name": "device-002", "location": "500 W 30TH STREET", "vendor": "Vendor.EXAMPLE",
+     "device_type": "DeviceType.ROUTER", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+     "os_version": "1.2.4", "serial_number": "SERIAL-002",
+     "description": "Vendor.EXAMPLE MODEL-A EXAMPLE_OS 1.2.4"}
+  ],
+  "forward_interfaces": [
+    {"device": "device-001", "name": "Ethernet1", "kind": "physical", "type": "10gbase-t",
+     "lag": "", "lag_key": "", "mode": "", "untagged_vlan": null, "enabled": true, "mtu": 1500,
+     "description": "uplink", "speed": 10000000, "mac_address": "00:11:22:33:44:55"},
+    {"device": "device-001", "name": "Loopback0", "kind": "virtual", "type": "virtual",
+     "lag": "", "lag_key": "", "mode": "", "untagged_vlan": null, "enabled": true, "mtu": 65535,
+     "description": "", "speed": null, "mac_address": ""},
+    {"device": "device-002", "name": "Ethernet1", "kind": "physical", "type": "10gbase-t",
+     "lag": "", "lag_key": "", "mode": "", "untagged_vlan": null, "enabled": false, "mtu": 1500,
+     "description": "", "speed": 10000000, "mac_address": "00:11:22:33:44:66"},
+    {"device": "device-999", "name": "Ethernet9", "kind": "physical", "type": "other",
+     "lag": "", "lag_key": "", "mode": "", "untagged_vlan": null, "enabled": true, "mtu": 1500,
+     "description": "orphan: device not in this sync", "speed": null, "mac_address": ""}
+  ],
+  "forward_vrfs": [
+    {"name": "BLUE", "rd": "65000:1", "description": "", "enforce_unique": false,
+     "scope_devices": ["device-001"]}
+  ],
+  "forward_vlans": [
+    {"site": "500 W 30TH STREET", "vid": 100, "name": "Users", "status": "active",
+     "scope_devices": ["device-002"]}
+  ],
+  "forward_prefixes_ipv4": [
+    {"namespace": "BLUE", "vrf_ref": "BLUE", "prefix": "10.0.0.0/24", "family": 4, "status": "active"},
+    {"namespace": "default", "vrf_ref": "", "prefix": "192.168.0.0/24", "family": 4, "status": "active"}
+  ],
+  "forward_prefixes_ipv6": [
+    {"namespace": "default", "vrf_ref": "", "prefix": "2001:db8:1::/64", "family": 6, "status": "active"}
+  ],
+  "forward_ip_addresses": [
+    {"device": "device-001", "interface": "Loopback0", "interface_key": "device-001__Loopback0",
+     "namespace": "default", "vrf_ref": "", "address": "192.168.0.1/24", "host_ip": "192.168.0.1",
+     "prefix_length": 24, "description": "device-001 Loopback0", "primary_of": ["device-001"],
+     "status": "active"},
+    {"device": "device-001", "interface": "Ethernet1", "interface_key": "device-001__Ethernet1",
+     "namespace": "BLUE", "vrf_ref": "BLUE", "address": "10.0.0.1/24", "host_ip": "10.0.0.1",
+     "prefix_length": 24, "description": "device-001 Ethernet1", "primary_of": [],
+     "status": "active"}
+  ],
+  "forward_cables": [
+    {"device": "device-001", "interface": "Ethernet1", "remote_device": "device-002",
+     "remote_interface": "Ethernet1", "label": "device-001:Ethernet1 <> device-002:Ethernet1",
+     "connected_endpoints": ["device-001__Ethernet1", "device-002__Ethernet1"],
+     "status": "connected"}
+  ],
+  "forward_cloud_accounts": [
+    {"account_id": "111122223333", "name": "example-prod", "cloud_type": "aws"}
+  ],
+  "forward_cloud_networks": [
+    {"account_id": "111122223333", "cloud_type": "aws",
+     "account_key": "aws__111122223333", "network_id": "vpc-abc", "name": "prod-vpc",
+     "parent_id": "", "vpc_key": "", "kind": "vpc", "cidrs": ["10.1.0.0/16"]},
+    {"account_id": "111122223333", "cloud_type": "aws",
+     "account_key": "aws__111122223333", "network_id": "subnet-abc", "name": "prod-a",
+     "parent_id": "vpc-abc", "vpc_key": "aws__111122223333__vpc-abc", "kind": "subnet",
+     "cidrs": ["10.1.1.0/24"]}
+  ],
+  "forward_cloud_services": [
+    {"account_id": "111122223333", "cloud_type": "aws",
+     "account_key": "aws__111122223333", "service_id": "lb-abc", "name": "prod-alb",
+     "vpc_id": "vpc-abc", "vpc_key": "aws__111122223333__vpc-abc",
+     "service_kind": "load-balancer"}
+  ],
+  "diffs": {
+    "forward_devices": [
+      {"type": "MODIFIED",
+       "before": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
+                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+                  "os_version": "1.2.2", "serial_number": "SERIAL-001", "description": "old"},
+       "after": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
+                 "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+                 "os_version": "1.2.3", "serial_number": "SERIAL-001", "description": "new"}},
+      {"type": "DELETED",
+       "before": {"name": "device-003", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
+                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+                  "os_version": "1.0.0", "serial_number": "SERIAL-003", "description": "gone"},
+       "after": null}
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+/**
+ * @intent Forward VRFs
+ * @description Non-default network instances as IpamVRF rows. The same rows also back the IP namespace table, where the built-in default namespace is added.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach ni in device.networkInstances
+  where ni.name != "default"
+  where toString(ni.instanceType) != "NetworkInstanceType.DEFAULT_INSTANCE"
+  select distinct {name: ni.name, scope_device: device.name}
+)
+group row as grouped_rows by row.name as name
+select {
+  name: name,
+  rd: "",
+  description: "",
+  enforce_unique: false,
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

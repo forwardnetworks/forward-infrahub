@@ -1,0 +1,29 @@
+/**
+ * @intent Forward locations
+ * @description Location rows as LocationSite. description and physical_address are built from city and country so a site carries something human-readable even when Forward knows only one of them.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach location in network.locations
+let city = if isPresent(location.city) then location.city else ""
+let country = if isPresent(location.country) then location.country else ""
+let address =
+  if city != "" && country != "" then join(", ", [city, country])
+  else if city != "" then city
+  else country
+let scope_devices = (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  where isPresent(device.locationName) && device.locationName == location.name
+  select device.name
+)
+select {
+  name: location.name,
+  city: city,
+  country: country,
+  description: address,
+  physical_address: address,
+  scope_devices: scope_devices
+}

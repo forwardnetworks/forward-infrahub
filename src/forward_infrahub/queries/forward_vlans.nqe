@@ -1,0 +1,28 @@
+/**
+ * @intent Forward VLANs
+ * @description VLAN rows as IpamVLAN, grouped per site so one VLAN id spans the devices that carry it.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(site, vid)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach ni in device.networkInstances
+  foreach vlan in ni.vlans
+  select distinct {
+    site: if isPresent(device.locationName) then device.locationName else "",
+    vid: vlan.vlanId,
+    name: if isPresent(vlan.name) then vlan.name else join(" ", ["VLAN", toString(vlan.vlanId)]),
+    scope_device: device.name
+  }
+)
+group row as grouped_rows by {site: row.site, vid: row.vid} as key
+select {
+  site: key.site,
+  vid: key.vid,
+  name: min(foreach candidate in grouped_rows select candidate.name),
+  status: "active",
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

@@ -1,0 +1,45 @@
+/**
+ * @intent Forward cloud services
+ * @description Load balancer and NAT-gateway rows, scoped to their account and VPC. service_kind selects the service type; vpc_key is the owning VPC's identity.
+ * @contract-version v3-infrahub
+ */
+
+cloud_load_balancers() =
+  foreach account in network.cloudAccounts
+  foreach vpc in account.vpcs
+  foreach lb in vpc.loadBalancers
+  select {
+    account_id: account.id,
+    cloud_type: toLowerCase(replace(toString(account.cloudType), "CloudType.", "")),
+    service_id: lb.id,
+    name: if isPresent(lb.name) && lb.name != "" then lb.name else lb.id,
+    vpc_id: vpc.id,
+    service_kind: "load-balancer"
+  };
+
+cloud_nat_gateways() =
+  foreach account in network.cloudAccounts
+  foreach vpc in account.vpcs
+  foreach nat in vpc.natGateways
+  select {
+    account_id: account.id,
+    cloud_type: toLowerCase(replace(toString(account.cloudType), "CloudType.", "")),
+    service_id: nat.id,
+    name: if isPresent(nat.name) && nat.name != "" then nat.name else nat.id,
+    vpc_id: vpc.id,
+    service_kind: "nat-gateway"
+  };
+
+@primaryKey(cloud_type, account_id, service_id)
+foreach row in ( cloud_load_balancers() + cloud_nat_gateways() )
+let account_key = join("__", [row.cloud_type, row.account_id])
+select {
+  account_id: row.account_id,
+  cloud_type: row.cloud_type,
+  account_key: account_key,
+  service_id: row.service_id,
+  name: row.name,
+  vpc_id: row.vpc_id,
+  vpc_key: join("__", [account_key, row.vpc_id]),
+  service_kind: row.service_kind
+}

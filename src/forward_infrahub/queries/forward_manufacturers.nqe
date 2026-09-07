@@ -1,0 +1,21 @@
+/**
+ * @intent Forward manufacturers
+ * @description Device vendors as OrganizationManufacturer rows. Vendors are grouped so a vendor with no model string still gets a manufacturer.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  select distinct {
+    name: toString(device.platform.vendor),
+    scope_device: device.name
+  }
+)
+group row as grouped_rows by row.name as name
+select {
+  name: name,
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

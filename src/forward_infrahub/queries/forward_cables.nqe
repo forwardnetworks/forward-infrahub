@@ -1,0 +1,43 @@
+/**
+ * @intent Forward cables
+ * @description DcimCable rows from Forward's resolved interface links. Directionless: each link is emitted once, endpoints canonically ordered so A<->B and B<->A collapse. Both ends must be ethernet, because an Infrahub cable connects physical interfaces. label is the cable's human-friendly id and connected_endpoints holds the two interface identities.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(device, interface, remote_device, remote_interface)
+foreach device in network.devices
+where device.snapshotInfo.result == DeviceSnapshotResult.completed
+where device.platform.vendor != Vendor.FORWARD_CUSTOM
+foreach interface in device.interfaces
+where interface.interfaceType == IfaceType.IF_ETHERNET
+foreach link in interface.links
+where link.deviceName != ""
+where link.ifaceName != ""
+let remote_interface_type = max(
+  foreach remote_device in network.devices
+  where remote_device.name == link.deviceName
+  where remote_device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where remote_device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach remote_interface in remote_device.interfaces
+  where remote_interface.name == link.ifaceName
+  select remote_interface.interfaceType
+)
+where isPresent(remote_interface_type)
+where remote_interface_type == IfaceType.IF_ETHERNET
+where device.name != link.deviceName || interface.name != link.ifaceName
+let local_first =
+  device.name < link.deviceName
+  || (device.name == link.deviceName && interface.name < link.ifaceName)
+let a_device = if local_first then device.name else link.deviceName
+let a_interface = if local_first then interface.name else link.ifaceName
+let b_device = if local_first then link.deviceName else device.name
+let b_interface = if local_first then link.ifaceName else interface.name
+select {
+  device: a_device,
+  interface: a_interface,
+  remote_device: b_device,
+  remote_interface: b_interface,
+  label: join(" <> ", [join(":", [a_device, a_interface]), join(":", [b_device, b_interface])]),
+  connected_endpoints: [join("__", [a_device, a_interface]), join("__", [b_device, b_interface])],
+  status: "connected"
+}

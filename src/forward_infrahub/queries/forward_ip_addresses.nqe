@@ -1,0 +1,199 @@
+/**
+ * @intent Forward IP addresses
+ * @description IpamIPAddress rows from Forward interface L3 state, covering subinterface, bridge, tunnel and routed-VLAN attachment for both families. Addresses anchor to the parent interface, not the subinterface. namespace is the network instance; interface_key is the owning interface's identity; primary_of names the device when the address sits on a management or first loopback interface, which is how a device gets its primary address without a second pass.
+ * @contract-version v3-infrahub
+ */
+
+isPrimaryInterface(name: String) =
+  name == "Loopback0" || name == "lo0" || name == "fxp0" ||
+  startsWith(name, "Management") || startsWith(name, "mgmt") ||
+  startsWith(name, "Mgmt") || startsWith(name, "MgmtEth");
+
+subinterface_ipv4() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  foreach subinterface in interface.subinterfaces
+  foreach address in subinterface.ipv4.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 31 || address.ip != networkAddress(subnet)
+  where address.prefixLength >= 31 || address.ip != broadcastAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(subinterface.networkInstanceName)
+      then if subinterface.networkInstanceName != "default" then subinterface.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+subinterface_ipv6() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  foreach subinterface in interface.subinterfaces
+  foreach address in subinterface.ipv6.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 127 || address.ip != networkAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(subinterface.networkInstanceName)
+      then if subinterface.networkInstanceName != "default" then subinterface.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+bridge_ipv4() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.bridge?.ipv4?.addresses)
+  foreach address in interface.bridge.ipv4.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 31 || address.ip != networkAddress(subnet)
+  where address.prefixLength >= 31 || address.ip != broadcastAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.bridge.networkInstanceName)
+      then if interface.bridge.networkInstanceName != "default" then interface.bridge.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+bridge_ipv6() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.bridge?.ipv6?.addresses)
+  foreach address in interface.bridge.ipv6.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 127 || address.ip != networkAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.bridge.networkInstanceName)
+      then if interface.bridge.networkInstanceName != "default" then interface.bridge.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+tunnel_ipv4() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.tunnel?.ipv4?.addresses)
+  foreach address in interface.tunnel.ipv4.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 31 || address.ip != networkAddress(subnet)
+  where address.prefixLength >= 31 || address.ip != broadcastAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.tunnel.networkInstanceName)
+      then if interface.tunnel.networkInstanceName != "default" then interface.tunnel.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+tunnel_ipv6() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.tunnel?.ipv6?.addresses)
+  foreach address in interface.tunnel.ipv6.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 127 || address.ip != networkAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.tunnel.networkInstanceName)
+      then if interface.tunnel.networkInstanceName != "default" then interface.tunnel.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+routed_vlan_ipv4() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.routedVlan?.ipv4?.addresses)
+  foreach address in interface.routedVlan.ipv4.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 31 || address.ip != networkAddress(subnet)
+  where address.prefixLength >= 31 || address.ip != broadcastAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.routedVlan.networkInstanceName)
+      then if interface.routedVlan.networkInstanceName != "default" then interface.routedVlan.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+routed_vlan_ipv6() =
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach interface in device.interfaces
+  where isPresent(interface.routedVlan?.ipv6?.addresses)
+  foreach address in interface.routedVlan.ipv6.addresses
+  let subnet = ipSubnet(address.ip, address.prefixLength)
+  where address.prefixLength >= 127 || address.ip != networkAddress(subnet)
+  select {
+    device: device.name,
+    interface: interface.name,
+    namespace: if isPresent(interface.routedVlan.networkInstanceName)
+      then if interface.routedVlan.networkInstanceName != "default" then interface.routedVlan.networkInstanceName else "default"
+      else "default",
+    address: join("/", [toString(address.ip), toString(address.prefixLength)]),
+    host_ip: address.ip,
+    prefix_length: address.prefixLength
+  };
+
+@primaryKey(device, interface, address, namespace)
+foreach row in (
+  subinterface_ipv4()
+    + subinterface_ipv6()
+    + bridge_ipv4()
+    + bridge_ipv6()
+    + tunnel_ipv4()
+    + tunnel_ipv6()
+    + routed_vlan_ipv4()
+    + routed_vlan_ipv6()
+)
+select distinct {
+  device: row.device,
+  interface: row.interface,
+  interface_key: join("__", [row.device, row.interface]),
+  namespace: row.namespace,
+  vrf_ref: if row.namespace != "default" then row.namespace else "",
+  address: row.address,
+  host_ip: row.host_ip,
+  prefix_length: row.prefix_length,
+  description: join(" ", [row.device, row.interface]),
+  primary_of: if isPrimaryInterface(row.interface) then [row.device] else [] : List<String>,
+  status: "active"
+}

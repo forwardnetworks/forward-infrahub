@@ -1,0 +1,23 @@
+/**
+ * @intent Forward platforms
+ * @description Forward operating-system families as DcimPlatform rows.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  select distinct {
+    name: toString(device.platform.os),
+    manufacturer: toString(device.platform.vendor),
+    scope_device: device.name
+  }
+)
+group row as grouped_rows by row.name as name
+select {
+  name: name,
+  manufacturer: min(foreach candidate in grouped_rows select candidate.manufacturer),
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

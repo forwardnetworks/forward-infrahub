@@ -1,0 +1,27 @@
+/**
+ * @intent Forward device types
+ * @description Forward hardware models as DcimDeviceType rows.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(manufacturer, name)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  where isPresent(device.platform.model) && device.platform.model != ""
+  select distinct {
+    manufacturer: toString(device.platform.vendor),
+    name: device.platform.model,
+    scope_device: device.name
+  }
+)
+group row as grouped_rows by {
+  manufacturer: row.manufacturer,
+  name: row.name
+} as key
+select {
+  manufacturer: key.manufacturer,
+  name: key.name,
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

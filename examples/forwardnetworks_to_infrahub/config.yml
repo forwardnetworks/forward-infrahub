@@ -1,0 +1,363 @@
+---
+# Forward Networks -> Infrahub.
+#
+# Targets the Infrahub schema library (base + the location_site, vlan, vrf and
+# cable extensions) plus the small Cloud* extension this package ships. Load
+# them with ./infrahub-schema-load.sh before running `infrahub-sync generate`.
+name: from-forwardnetworks
+
+source:
+  name: forwardnetworks
+  settings:
+    # url, username, password and network_id fall back to FORWARD_URL,
+    # FORWARD_USERNAME, FORWARD_PASSWORD and FORWARD_NETWORK_ID.
+    url: "https://fwd.app"
+    network_id: "<NETWORK-ID>"
+    # latestProcessed | latestCollected | an explicit snapshot id.
+    # latestCollected skips a snapshot that processed but collected nothing.
+    snapshot_id: latestProcessed
+    verify_ssl: true
+    # Narrow which devices this sync owns. Empty means every device.
+    device_vendors: []
+    device_types: []
+    device_models: []
+    cloud_types: []
+    cloud_account_ids: []
+    # Where `forward-infrahub publish-queries` puts the bundled queries.
+    # Publishing them enables snapshot diffs; until then they run inline.
+    query_directory: /forward_infrahub
+    query_mode: auto
+
+destination:
+  name: infrahub
+  settings:
+    url: "http://localhost:8000"
+    # A CoreAccount named after source.name must exist: the destination marks
+    # everything it writes with it, so operator edits stay distinguishable.
+
+# Deletes are off. Read docs/safety.md before removing this: Forward reports
+# what it collected, and a device that failed collection looks exactly like a
+# device that was decommissioned.
+diffsync_flags:
+  - SKIP_UNMATCHED_DST
+
+incremental:
+  full_resync_every: 20
+
+order:
+  - OrganizationManufacturer
+  - DcimPlatform
+  - DcimDeviceType
+  - LocationSite
+  - DcimDevice
+  - InterfacePhysical
+  - InterfaceVirtual
+  - IpamNamespace
+  - IpamVRF
+  - IpamVLANGroup
+  - IpamVLAN
+  - IpamPrefix
+  - IpamIPAddress
+  - DcimCable
+  - CloudAccount
+  - CloudVPC
+  - CloudSubnet
+  - CloudService
+
+schema_mapping:
+  - name: OrganizationManufacturer
+    mapping: nqe:manufacturers
+    identifiers: [name]
+    transforms:
+      - field: name
+        expression: "{{ name | title_vendor }}"
+    fields:
+      - name: name
+        mapping: name
+
+  - name: DcimPlatform
+    mapping: nqe:platforms
+    identifiers: [name]
+    transforms:
+      - field: manufacturer
+        expression: "{{ manufacturer | title_vendor }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: description
+        static: "Discovered by Forward Networks"
+      - name: manufacturer
+        mapping: manufacturer
+        reference: OrganizationManufacturer
+
+  - name: DcimDeviceType
+    # DcimDeviceType.name is unique on its own in the schema library. If two of
+    # your vendors ship the same model string, prefix the vendor here and in
+    # DcimDevice.device_type: "{{ manufacturer | title_vendor }} {{ name }}".
+    mapping: nqe:device_types
+    identifiers: [name]
+    transforms:
+      - field: manufacturer
+        expression: "{{ manufacturer | title_vendor }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: height
+        static: 1
+      - name: full_depth
+        static: true
+      - name: manufacturer
+        mapping: manufacturer
+        reference: OrganizationManufacturer
+
+  - name: LocationSite
+    mapping: nqe:locations
+    identifiers: [name]
+    fields:
+      - name: name
+        mapping: name
+      - name: status
+        static: active
+      - name: description
+        mapping: description
+      - name: physical_address
+        mapping: physical_address
+
+  - name: DcimDevice
+    mapping: nqe:devices
+    identifiers: [name]
+    # LocationSite is required on a device, and Forward does not always know one.
+    filters:
+      - field: location
+        operation: is_not_empty
+    fields:
+      - name: name
+        mapping: name
+      - name: status
+        static: active
+      - name: rack_face
+        static: front
+      - name: serial_number
+        mapping: serial_number
+      - name: description
+        mapping: description
+      - name: device_type
+        mapping: model
+        reference: DcimDeviceType
+      - name: platform
+        mapping: platform
+        reference: DcimPlatform
+      - name: location
+        mapping: location
+        reference: LocationSite
+
+  - name: InterfacePhysical
+    mapping: nqe:interfaces
+    identifiers: [device, name]
+    filters:
+      - field: kind
+        operation: "=="
+        value: physical
+    transforms:
+      - field: status
+        expression: "{{ enabled | oper_status }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: description
+        mapping: description
+      - name: status
+        mapping: status
+      - name: mtu
+        mapping: mtu
+      - name: mac_address
+        mapping: mac_address
+      - name: device
+        mapping: device
+        reference: DcimDevice
+
+  - name: InterfaceVirtual
+    mapping: nqe:interfaces
+    identifiers: [device, name]
+    filters:
+      - field: kind
+        operation: "=="
+        value: virtual
+    transforms:
+      - field: status
+        expression: "{{ enabled | oper_status }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: description
+        mapping: description
+      - name: status
+        mapping: status
+      - name: mtu
+        mapping: mtu
+      - name: device
+        mapping: device
+        reference: DcimDevice
+
+  - name: IpamNamespace
+    # One namespace per Forward network instance, plus the built-in default.
+    # Prefix and address uniqueness is per namespace, and the same subnet in two
+    # VRFs is ordinary in collected data.
+    mapping: nqe:ip_namespaces
+    identifiers: [name]
+    fields:
+      - name: name
+        mapping: name
+
+  - name: IpamVRF
+    mapping: nqe:vrfs
+    identifiers: [name]
+    fields:
+      - name: name
+        mapping: name
+      - name: vrf_rd
+        mapping: rd
+      - name: description
+        mapping: description
+
+  - name: IpamVLANGroup
+    # One group per site, so a VLAN id is unique within the site that uses it.
+    mapping: nqe:locations
+    identifiers: [name]
+    fields:
+      - name: name
+        mapping: name
+      - name: scope
+        mapping: name
+        reference: LocationSite
+
+  - name: IpamVLAN
+    mapping: nqe:vlans
+    identifiers: [vlan_id, vlan_group]
+    filters:
+      - field: site
+        operation: is_not_empty
+    fields:
+      - name: name
+        mapping: name
+      - name: vlan_id
+        mapping: vid
+      - name: status
+        static: active
+      - name: vlan_group
+        mapping: site
+        reference: IpamVLANGroup
+
+  - name: IpamPrefix
+    mapping: nqe:prefixes
+    identifiers: [prefix, ip_namespace]
+    fields:
+      - name: prefix
+        mapping: prefix
+      - name: status
+        static: active
+      - name: ip_namespace
+        mapping: namespace
+        reference: IpamNamespace
+      - name: vrf
+        mapping: vrf_ref
+        reference: IpamVRF
+
+  - name: IpamIPAddress
+    mapping: nqe:ip_addresses
+    identifiers: [address, ip_namespace]
+    fields:
+      - name: address
+        mapping: address
+      - name: status
+        static: active
+      - name: description
+        mapping: description
+      - name: ip_namespace
+        mapping: namespace
+        reference: IpamNamespace
+      - name: vrf
+        mapping: vrf_ref
+        reference: IpamVRF
+      - name: interface
+        mapping: interface_key
+        reference: InterfaceLayer3
+      # Set from this side so devices do not have to wait for their addresses.
+      - name: primary_of
+        mapping: primary_of
+        reference: DcimGenericDevice
+
+  - name: DcimCable
+    mapping: nqe:cables
+    identifiers: [label]
+    fields:
+      - name: label
+        mapping: label
+      - name: status
+        static: connected
+      - name: connected_endpoints
+        mapping: connected_endpoints
+        reference: DcimEndpoint
+
+  - name: CloudAccount
+    # cloud_type arrives as a bare token (aws, azure, gcp): the query normalises it
+    # so the account_key on VPC and service rows matches this identity exactly.
+    mapping: nqe:cloud_accounts
+    identifiers: [cloud_type, account_id]
+    fields:
+      - name: cloud_type
+        mapping: cloud_type
+      - name: account_id
+        mapping: account_id
+      - name: name
+        mapping: name
+
+  - name: CloudVPC
+    mapping: nqe:cloud_networks
+    identifiers: [account, network_id]
+    filters:
+      - field: kind
+        operation: "=="
+        value: vpc
+    fields:
+      - name: network_id
+        mapping: network_id
+      - name: name
+        mapping: name
+      - name: cidrs
+        mapping: cidrs
+      - name: account
+        mapping: account_key
+        reference: CloudAccount
+
+  - name: CloudSubnet
+    mapping: nqe:cloud_networks
+    identifiers: [vpc, network_id]
+    filters:
+      - field: kind
+        operation: "=="
+        value: subnet
+    fields:
+      - name: network_id
+        mapping: network_id
+      - name: name
+        mapping: name
+      - name: cidrs
+        mapping: cidrs
+      - name: vpc
+        mapping: vpc_key
+        reference: CloudVPC
+
+  - name: CloudService
+    mapping: nqe:cloud_services
+    identifiers: [vpc, service_id]
+    fields:
+      - name: service_id
+        mapping: service_id
+      - name: name
+        mapping: name
+      - name: service_kind
+        mapping: service_kind
+      - name: vpc
+        mapping: vpc_key
+        reference: CloudVPC

@@ -1,0 +1,170 @@
+---
+# Cloud inventory Forward collects that the Infrahub schema library does not
+# model. Identity is always the provider's own id, qualified by its parent: a
+# display name can change at any time, and syncing on one would create a second
+# object the next time somebody renamed a VPC in the console.
+version: "1.0"
+
+generics:
+  - name: GenericResource
+    namespace: Cloud
+    label: Cloud Resource
+    description: A resource Forward Networks discovered in a public cloud account.
+    include_in_menu: false
+    attributes:
+      - name: name
+        kind: Text
+        optional: false
+        order_weight: 1000
+      - name: description
+        kind: Text
+        optional: true
+        order_weight: 1100
+
+nodes:
+  - name: Account
+    namespace: Cloud
+    label: Cloud Account
+    icon: mdi:cloud-key-outline
+    include_in_menu: true
+    inherit_from:
+      - CloudGenericResource
+    human_friendly_id:
+      - cloud_type__value
+      - account_id__value
+    uniqueness_constraints:
+      - - cloud_type__value
+        - account_id__value
+    display_label: name__value
+    order_by:
+      - account_id__value
+    attributes:
+      - name: cloud_type
+        kind: Text
+        optional: false
+        order_weight: 900
+        description: Provider as Forward reports it. Text rather than a dropdown, because
+          Forward adds providers on its own schedule.
+      - name: account_id
+        kind: Text
+        optional: false
+        order_weight: 950
+    relationships:
+      - name: vpcs
+        peer: CloudVPC
+        kind: Component
+        cardinality: many
+        optional: true
+        identifier: cloudaccount__cloudvpc
+
+  - name: VPC
+    namespace: Cloud
+    label: VPC
+    icon: mdi:cloud-outline
+    include_in_menu: true
+    menu_placement: CloudAccount
+    inherit_from:
+      - CloudGenericResource
+    uniqueness_constraints:
+      - - account
+        - network_id__value
+    display_label: name__value
+    order_by:
+      - network_id__value
+    attributes:
+      - name: network_id
+        kind: Text
+        optional: false
+        order_weight: 900
+      - name: cidrs
+        kind: List
+        optional: true
+        order_weight: 1200
+    relationships:
+      - name: account
+        peer: CloudAccount
+        kind: Parent
+        cardinality: one
+        optional: false
+        identifier: cloudaccount__cloudvpc
+      - name: subnets
+        peer: CloudSubnet
+        kind: Component
+        cardinality: many
+        optional: true
+        identifier: cloudvpc__cloudsubnet
+      - name: services
+        peer: CloudService
+        kind: Component
+        cardinality: many
+        optional: true
+        identifier: cloudvpc__cloudservice
+
+  - name: Subnet
+    namespace: Cloud
+    label: Cloud Subnet
+    icon: mdi:ip-network-outline
+    include_in_menu: true
+    menu_placement: CloudVPC
+    inherit_from:
+      - CloudGenericResource
+    uniqueness_constraints:
+      - - vpc
+        - network_id__value
+    display_label: name__value
+    order_by:
+      - network_id__value
+    attributes:
+      - name: network_id
+        kind: Text
+        optional: false
+        order_weight: 900
+      - name: cidrs
+        kind: List
+        optional: true
+        order_weight: 1200
+    relationships:
+      - name: vpc
+        peer: CloudVPC
+        kind: Parent
+        cardinality: one
+        optional: false
+        identifier: cloudvpc__cloudsubnet
+
+  - name: Service
+    namespace: Cloud
+    label: Cloud Service
+    icon: mdi:cloud-cog-outline
+    include_in_menu: true
+    menu_placement: CloudVPC
+    inherit_from:
+      - CloudGenericResource
+    uniqueness_constraints:
+      - - vpc
+        - service_id__value
+    display_label: name__value
+    order_by:
+      - service_id__value
+    attributes:
+      - name: service_id
+        kind: Text
+        optional: false
+        order_weight: 900
+      - name: service_kind
+        kind: Dropdown
+        optional: false
+        order_weight: 1000
+        choices:
+          - name: load-balancer
+            label: Load Balancer
+            color: "#7986cb"
+          - name: nat-gateway
+            label: NAT Gateway
+            color: "#4caf50"
+    relationships:
+      - name: vpc
+        peer: CloudVPC
+        kind: Parent
+        cardinality: one
+        optional: false
+        identifier: cloudvpc__cloudservice
