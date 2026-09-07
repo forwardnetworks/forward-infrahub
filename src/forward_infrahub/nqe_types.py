@@ -52,6 +52,15 @@ TYPE_SOURCES: dict[str, str] = {
 #: https://docs.fwd.app/latest/application/nqe/language/data-model/type-vendor
 #: , .../type-devicetype and .../type-os. Refresh from there if Forward adds a
 #: value; the SDK gaining one is not evidence that NQE has.
+#:
+#: These lists are temporary. forward-sdk generates the same names from the NQE
+#: data model on its main branch, as ``forward_sdk.nqe.enums.members``, which
+#: is the same source these pages are rendered from and is regenerated with the
+#: rest of the vendored description. When that reaches a release, delete
+#: ``NQE_MEMBERS`` and call ``members()``: a generated list cannot go stale the
+#: way a transcribed one does. ``tests/test_nqe_types.py`` cross-checks the two
+#: whenever the installed SDK has it, so the swap is a deletion rather than a
+#: migration.
 NQE_MEMBERS: dict[str, frozenset[str]] = {
     # A block of names, kept as written on the page so it can be diffed against it.
     "Vendor": frozenset(
