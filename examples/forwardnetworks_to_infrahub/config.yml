@@ -245,13 +245,27 @@ schema_mapping:
         reference: LocationSite
 
   - name: IpamVLAN
+    # IpamVLAN inherits a human-friendly id of name alone, so Infrahub treats
+    # two VLANs with the same name as the same node however they are scoped.
+    # A real network had 127 VLANs under 57 names, and an unqualified name
+    # silently merged them down to 57: not rejected, merged, each write
+    # rewriting the previous one's id and group.
+    #
+    # So the name is qualified with the id and site that identify it, and the
+    # name Forward reports is kept in description. Shorten this if your site
+    # names are long, but keep it unique per site.
     mapping: nqe:vlans
     identifiers: [vlan_id, vlan_group]
     filters:
       - field: site
         operation: is_not_empty
+    transforms:
+      - field: qualified_name
+        expression: "{{ name }} ({{ vid }}) @ {{ site }}"
     fields:
       - name: name
+        mapping: qualified_name
+      - name: description
         mapping: name
       - name: vlan_id
         mapping: vid

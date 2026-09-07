@@ -20,7 +20,7 @@
 
 ### Notes
 
-- Depends on `forward-sdk==0.1.3` from PyPI, pinned exactly because the SDK is
+- Depends on `forward-sdk==0.1.4` from PyPI, pinned exactly because the SDK is
   pre-1.0.
 - `infrahub-sync` 2.0.0 needs the two patches in `upstream/` before it can sync
   any attribute that is not Text.

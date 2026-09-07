@@ -167,3 +167,19 @@ def test_location_backed_kinds_filter_out_empty_sites() -> None:
             assert any(
                 f["field"] == "scope_devices" and f["operation"] == "is_not_empty" for f in filters
             ), f"{element['name']} would import every location Forward knows"
+
+
+def test_vlan_names_are_qualified_because_infrahub_keys_on_them() -> None:
+    """IpamVLAN inherits a human-friendly id of name alone.
+
+    Two VLANs sharing a name are then the same node to Infrahub however they
+    are scoped, and the second write updates the first rather than being
+    rejected. A real network had 127 VLANs under 57 names.
+    """
+    config = yaml.safe_load((EXAMPLE_DIR / "config.yml").read_text())
+    vlan = next(e for e in config["schema_mapping"] if e["name"] == "IpamVLAN")
+    name_field = next(f for f in vlan["fields"] if f["name"] == "name")
+    transform = next(t for t in vlan["transforms"] if t["field"] == name_field["mapping"])
+    # The identifying columns must all appear, or two VLANs can still collide.
+    for column in ("vid", "site"):
+        assert f"{{{{ {column} }}}}" in transform["expression"], column
