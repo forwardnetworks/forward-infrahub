@@ -53,6 +53,31 @@ A table that fails abandons the whole run. A partial load is indistinguishable
 from an upstream deletion, which is the one thing this design refuses to guess
 about.
 
+## The row-count guardrail, and narrowing a sync on purpose
+
+infrahub-sync compares each kind's row count against the last successful run
+and refuses to proceed when one collapses, which is the right default: a source
+that suddenly returns a fraction of what it did is far more often broken than
+newly tidy.
+
+It fires on a deliberate narrowing too. Adding the `scope_devices` filter to
+`LocationSite` took a real network from 394 sites to 13 and stopped the run:
+
+```
+RowcountGuardrailError: Rowcount guardrail tripped for 'LocationSite':
+dropped from 394 to 13 (ratio 0.03 < threshold 0.50).
+Pass --allow-rowcount-drop to override.
+```
+
+Pass `--allow-rowcount-drop` once, having checked the drop is the one you
+intended. The same applies the first time you add a device or cloud allowlist.
+
+Note what the flag does not do. With deletes off, the objects from the wider
+run stay in Infrahub: the 381 sites that fell out of scope are no longer
+written, and nothing removes them either. They are orphans of a scope change,
+not of anything upstream, and removing them is a decision for whoever owns that
+data.
+
 ## Publishing queries
 
 A sync never writes to Forward's query library. `forward-infrahub
