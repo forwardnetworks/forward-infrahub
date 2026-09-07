@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import yaml
 
 from forward_infrahub.contracts import QUERY_CONTRACT_FIELDS, check_contracts, primary_key_columns
@@ -96,3 +98,49 @@ def test_transforms_only_read_columns_that_exist() -> None:
                         f"{element['name']}: transform reads {name!r}, absent from {ref.spec.name}"
                     )
     assert problems == []
+
+
+#: NQE type names read off ``toString()`` renderings on a real network.
+#: The NQE data model names its types independently of the REST schema, so a
+#: name cannot be inferred from the SDK class: ``device.platform.os`` is an
+#: ``OS`` in NQE and a ``VendorOs`` in the SDK. Inferring it that way is how
+#: the platform name was wrong, and the inference held for the two types that
+#: were checked first.
+MEASURED_TYPE_PREFIXES = {"Vendor.", "DeviceType.", "OS.", "NetworkInstanceType."}
+
+#: Assumed but never seen rendered. Each is a name that may not exist, in which
+#: case the replace does nothing and the prefix reaches Infrahub inside the
+#: value. Both sides of a reference use the same expression, so identities
+#: still match and a sync still works; the names are simply wrong. Confirm each
+#: against a live network and move it above, or correct it.
+UNVERIFIED_TYPE_PREFIXES = {"CloudType."}
+
+TYPE_PREFIX_RE = re.compile(r'replace\(toString\([^)]*\),\s*"([^"]*)"')
+
+
+def stripped_prefixes() -> set[str]:
+    return {
+        prefix
+        for filename in QUERY_FILENAMES
+        for prefix in TYPE_PREFIX_RE.findall(read_query_source(filename))
+    }
+
+
+def test_no_query_strips_an_unconsidered_prefix() -> None:
+    """A prefix that never appears makes replace a silent no-op.
+
+    That is the failure this guards. The value still reaches Infrahub, still
+    round-trips, and is wrong in a way no offline test can see, because the
+    fixture that would catch it was written by whoever wrote the assumption.
+    A new prefix must be measured, or listed as unverified deliberately.
+    """
+    unconsidered = stripped_prefixes() - MEASURED_TYPE_PREFIXES - UNVERIFIED_TYPE_PREFIXES
+    assert unconsidered == set(), (
+        f"queries strip {sorted(unconsidered)}, which is neither measured nor listed as "
+        "unverified. Read the type name off a toString() rendering on a real network."
+    )
+
+
+def test_the_unverified_list_still_describes_the_queries() -> None:
+    """So the list shrinks when a prefix is confirmed, rather than going stale."""
+    assert stripped_prefixes() >= UNVERIFIED_TYPE_PREFIXES
