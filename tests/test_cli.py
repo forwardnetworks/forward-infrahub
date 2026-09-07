@@ -100,7 +100,14 @@ def test_audit_covers_every_bundled_query() -> None:
 
 
 def test_audit_separates_cannot_ask_from_not_published() -> None:
-    """A transient failure is not evidence that a query is missing."""
+    """A transient failure is not evidence that a query is missing.
+
+    Reporting one as the other would tell an operator to republish a library
+    that had lost nothing. This half of the contract is ours: given an error
+    that is not ForwardNotFoundError, the audit must not conclude MISSING. The
+    other half is the SDK's, which guarantees repo.source propagates a server
+    error rather than converting it, and holds that with its own test.
+    """
 
     class Unreachable(FakeRepo):
         def source(self, path: str, **_: Any) -> str:
