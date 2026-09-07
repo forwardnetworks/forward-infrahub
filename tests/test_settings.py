@@ -33,9 +33,16 @@ def test_a_misspelled_vendor_is_refused_with_a_suggestion() -> None:
 
 
 def test_an_unknown_vendor_says_how_to_proceed() -> None:
-    """A vendor Forward added since this SDK release is a real possibility."""
-    with pytest.raises(ValueError, match="upgrade forward-sdk"):
+    """A vendor Forward added since this SDK release is the other cause.
+
+    The message names the SDK version its enum came from, so an operator can
+    tell a typo from a list that has fallen behind their server.
+    """
+    from forward_sdk import __version__ as sdk_version
+
+    with pytest.raises(ValueError, match="upgrade forward-sdk") as raised:
         AdapterSettings(device_vendors=["Vendor.NOPE"])
+    assert sdk_version in str(raised.value)
 
 
 def test_models_are_not_checked_because_they_are_free_text() -> None:

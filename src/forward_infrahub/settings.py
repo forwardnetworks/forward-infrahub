@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Literal
 
 from forward_sdk import ForwardClient, ForwardConfigurationError
+from forward_sdk import __version__ as sdk_version
 from forward_sdk.models import DeviceType, Vendor
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -46,8 +47,9 @@ def canonical_enum_values(values: Any, enum_cls: type[Enum], setting: str) -> li
             close = get_close_matches(token, sorted(known), n=3)
             hint = f" Did you mean {' or '.join(close)}?" if close else ""
             raise ValueError(
-                f"{setting}: {value!r} is not a {enum_cls.__name__} known to this version of "
-                f"forward-sdk.{hint} If Forward added it recently, upgrade forward-sdk."
+                f"{setting}: {value!r} is not one of the {len(known)} "
+                f"{enum_cls.__name__} values known to forward-sdk {sdk_version}.{hint}"
+                " If Forward added it after that release, upgrade forward-sdk."
             )
         canonical.append(token)
     return canonical
