@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.0a2] - 2026-09-07
+
+### Fixed
+
+- MAC addresses are sent in the case Infrahub stores them in. It upper-cases a
+  MacAddress on write and Forward reports it lower case, so every physical
+  interface differed from itself on the next run and was rewritten. Found on a
+  real network, where it affected 1,986 interfaces.
+
 ## [0.1.0a1] - 2026-09-07
 
 First alpha. Verified against Forward Networks 26.8.4 and Infrahub 1.11.2.
