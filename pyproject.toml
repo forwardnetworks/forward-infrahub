@@ -37,6 +37,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/forwardnetworks/forward-infrahub"
 Repository = "https://github.com/forwardnetworks/forward-infrahub"
+Changelog = "https://github.com/forwardnetworks/forward-infrahub/blob/main/CHANGELOG.md"
+Issues = "https://github.com/forwardnetworks/forward-infrahub/issues"
 
 [project.scripts]
 forward-infrahub = "forward_infrahub.cli:main"

@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0a1] - 2026-09-07
+
+First alpha. Verified against Forward Networks 26.8.4 and Infrahub 1.11.2.
 
 ### Added
 
@@ -27,3 +29,20 @@
   typed `str` and rejects its own value.
 - `infrahub-sync` 2.0.0 also stringifies every attribute it reads back, which
   is fixed on their `main` but unreleased. See `upstream/`.
+
+### Known limitations
+
+- Needs `infrahub-sync` from `main`. Its released 2.0.0 stringifies every
+  attribute it reads back, so a second sync cannot load its own destination.
+  Fixed upstream on 2026-05-29 and not yet in a release. Run
+  `forward-infrahub check-environment` to see whether your install has it.
+- Cloud objects have been read from a real network, 1,149 accounts across AWS
+  and Azure, but never written into Infrahub. The mapping is covered by tests
+  against a fixture only.
+- `publish-queries` has not been run against a live Forward library. Queries
+  run inline until published, which works but rules out snapshot diffs.
+- Incremental runs are implemented and unit tested, but no live run has yet
+  taken the snapshot-diff path.
+- Prefix syncing is impractical at scale: infrahub-sync writes one object per
+  call, so the 83,775 IPv4 prefixes on one 37-device network would take about
+  three hours.
