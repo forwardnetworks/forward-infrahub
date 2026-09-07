@@ -169,6 +169,12 @@ schema_mapping:
     transforms:
       - field: status
         expression: "{{ enabled | oper_status }}"
+      # Infrahub upper-cases a MacAddress on write. Forward reports it lower
+      # case, so without this every interface differs from itself on the next
+      # run and is rewritten: 1,986 of them on the network this was found on.
+      # Matching Infrahub's form here is what makes the sync idempotent.
+      - field: mac_address
+        expression: "{{ mac_address | upper }}"
     fields:
       - name: name
         mapping: name

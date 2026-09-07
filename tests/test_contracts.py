@@ -183,3 +183,22 @@ def test_vlan_names_are_qualified_because_infrahub_keys_on_them() -> None:
     # The identifying columns must all appear, or two VLANs can still collide.
     for column in ("vid", "site"):
         assert f"{{{{ {column} }}}}" in transform["expression"], column
+
+
+def test_values_infrahub_normalises_are_sent_in_its_own_form() -> None:
+    """Otherwise a value differs from itself and is rewritten on every run.
+
+    Infrahub upper-cases a MacAddress on write. Forward reports it lower case,
+    so the source and the destination never compare equal and the sync is not
+    idempotent, while reporting a successful write each time.
+    """
+    config = yaml.safe_load((EXAMPLE_DIR / "config.yml").read_text())
+    for element in config["schema_mapping"]:
+        fields = {f["name"] for f in element["fields"]}
+        if "mac_address" not in fields:
+            continue
+        transforms = {t["field"]: t["expression"] for t in element.get("transforms") or []}
+        assert "mac_address" in transforms, (
+            f"{element['name']} maps mac_address without normalising its case"
+        )
+        assert "upper" in transforms["mac_address"]
