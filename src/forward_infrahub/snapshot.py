@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from forward_sdk import ForwardConfigurationError, ForwardError
+from forward_sdk.nqe.where import one_of
 
 from forward_infrahub.scope import scope_token
 from forward_infrahub.settings import LATEST_COLLECTED, LATEST_PROCESSED, AdapterSettings
@@ -69,18 +70,6 @@ class ResolvedSnapshot:
         return self.completeness.complete
 
 
-def _nqe_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
-
-
-def _scalar_clause(expression: str, values: Sequence[str]) -> str:
-    tokens = sorted({scope_token(value) for value in values if str(value).strip()})
-    if not tokens:
-        return ""
-    return f"where {expression} in [{', '.join(_nqe_string(token) for token in tokens)}]"
-
-
 def collected_probe_scope(settings: AdapterSettings) -> str:
     """Narrow the latestCollected probe to the devices this sync owns.
 
@@ -90,18 +79,26 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
     ForwardDeviceScope` exactly: if the probe and the scope disagreed, the run
     would pick a snapshot on the strength of devices it then discards.
     """
-    clauses = [
-        _scalar_clause(
+    fields = (
+        (
             'toLowerCase(replace(toString(device.platform.vendor), "Vendor.", ""))',
             settings.device_vendors,
         ),
-        _scalar_clause(
+        (
             'toLowerCase(replace(toString(device.platform.deviceType), "DeviceType.", ""))',
             settings.device_types,
         ),
-        _scalar_clause("toLowerCase(device.platform.model)", settings.device_models),
-    ]
-    return "\n".join(clause for clause in clauses if clause)
+        ("toLowerCase(device.platform.model)", settings.device_models),
+    )
+    clauses = []
+    for expression, values in fields:
+        # one_of, not membership: these fields hold a single value, and asking
+        # whether a scalar contains one would match nothing.
+        tokens = sorted({scope_token(value) for value in values if str(value).strip()})
+        predicate = one_of(expression, tokens)
+        if predicate:
+            clauses.append(f"where {predicate}")
+    return "\n".join(clauses)
 
 
 def resolve_snapshot(client: Any, settings: AdapterSettings, network_id: str) -> ResolvedSnapshot:

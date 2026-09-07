@@ -61,9 +61,16 @@ def incremental_reason(
     fingerprint: str,
 ) -> str:
     """Why this run cannot be incremental, or "" when it can."""
+    queries = list(queries)
     inline = sorted(q.label for q in queries if not q.diff_capable)
     if inline:
         return f"queries not published: {', '.join(inline)}"
+    # A published query with no commit is pinned to nothing, so it would be
+    # diffed against whatever is at head. The baseline could not then tell that
+    # the query had been rewritten, which is the one thing it exists to catch.
+    unpinned = sorted(q.label for q in queries if not q.commit_id)
+    if unpinned:
+        return f"queries resolved without a commit: {', '.join(unpinned)}"
     if sidecar is None:
         return "no baseline from a previous run"
     if sidecar.scope_fingerprint != fingerprint:

@@ -154,3 +154,14 @@ def test_existing_ids_report_what_the_source_currently_has(adapter: Any) -> None
 def test_two_syncs_keep_separate_baselines(adapter: Any) -> None:
     """Two Forward networks into one Infrahub must not overwrite each other."""
     assert adapter.config.name in adapter._sidecar_path().name
+
+
+def test_a_query_resolved_without_a_commit_is_refused() -> None:
+    """Unpinned means diffed against head, so a rewrite would go unnoticed."""
+    unpinned = ResolvedQuery(
+        key="file:forward_devices.nqe",
+        ref=QueryRef.by_id("FQ_devices"),
+        diff_capable=True,
+        label="forward_devices.nqe",
+    )
+    assert "without a commit" in reason(queries=[unpinned])
