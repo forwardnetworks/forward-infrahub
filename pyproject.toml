@@ -99,6 +99,7 @@ testpaths = ["tests"]
 markers = [
   "live: tests that hit a real Forward instance (need FORWARD_URL/USERNAME/PASSWORD/NETWORK_ID)",
   "infrahub: tests that need a local Infrahub (INFRAHUB_ADDRESS/INFRAHUB_API_TOKEN)",
+  "slow: tests that shell out (a wheel build, say)",
 ]
 addopts = "-m 'not live and not infrahub' -ra"
 pythonpath = ["."]
