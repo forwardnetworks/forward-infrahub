@@ -165,3 +165,29 @@ def test_a_query_resolved_without_a_commit_is_refused() -> None:
         label="forward_devices.nqe",
     )
     assert "without a commit" in reason(queries=[unpinned])
+
+
+def test_a_normal_published_run_trips_no_guard() -> None:
+    """The unpinned guard must fire on a real problem, not on every healthy run."""
+    assert reason() == ""
+    assert PUBLISHED.commit_id == "commit-1"
+
+
+def test_a_resolved_path_keeps_its_commit() -> None:
+    """A by_path query carries its pin through resolution, so the guard stays quiet.
+
+    Regression test for an SDK bug that dropped the commit on every path
+    resolution, which silently reduced the republished-query check to comparing
+    empty against empty.
+    """
+    resolved = QueryRef.by_path("/forward_infrahub/forward_devices").resolved(
+        "FQ_devices", "commit-1"
+    )
+    query = ResolvedQuery(
+        key="file:forward_devices.nqe",
+        ref=resolved,
+        diff_capable=True,
+        label="forward_devices.nqe",
+    )
+    assert query.commit_id == "commit-1"
+    assert reason(queries=[query]) == ""

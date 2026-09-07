@@ -111,6 +111,10 @@ uv run ruff check .
 uv run mypy
 ```
 
+The Forward SDK is pinned to an exact version rather than a range. It is pre-1.0
+and its surface is still moving, so a caret would let a breaking change in
+silently.
+
 The test suite needs neither Forward nor Infrahub: `replay_fixture` points the
 adapter at a JSON file of rows, which is also the fastest way to see what the
 adapter produces.

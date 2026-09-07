@@ -17,3 +17,10 @@
   an unchanged ownership scope.
 - Offline replay from a JSON fixture, for tests and for trying the adapter
   without Forward credentials.
+
+### Notes
+
+- Depends on `forward-sdk==0.1.0` from PyPI, pinned exactly because the SDK is
+  pre-1.0.
+- `infrahub-sync` 2.0.0 needs the two patches in `upstream/` before it can sync
+  any attribute that is not Text.

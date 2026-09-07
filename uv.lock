@@ -331,7 +331,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "diffsync", specifier = ">=2.0,<3" },
-    { name = "forward-sdk", editable = "../forward-python-sdk" },
+    { name = "forward-sdk", specifier = "==0.1.0" },
     { name = "infrahub-sync", specifier = ">=2.0,<2.1" },
     { name = "pydantic", specifier = ">=2.6,<3" },
     { name = "pyyaml", specifier = ">=6" },
@@ -349,42 +349,16 @@ dev = [
 
 [[package]]
 name = "forward-sdk"
-source = { editable = "../forward-python-sdk" }
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "pydantic", specifier = ">=2.6,<3" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'", specifier = ">=4.8" },
-]
-
-[package.metadata.requires-dev]
-codegen = [
-    { name = "datamodel-code-generator", extras = ["http"], specifier = ">=0.28" },
-    { name = "pyyaml", specifier = ">=6" },
-]
-dev = [
-    { name = "anyio", specifier = ">=4" },
-    { name = "mypy", specifier = ">=1.13" },
-    { name = "openapi-core", specifier = ">=0.19" },
-    { name = "openapi-spec-validator", specifier = ">=0.7,<0.9" },
-    { name = "pre-commit", specifier = ">=4" },
-    { name = "pytest", specifier = ">=8.3" },
-    { name = "pytest-cov", specifier = ">=5" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.9" },
-    { name = "types-pyyaml" },
-]
-docs = [
-    { name = "mkdocs", specifier = ">=1.6" },
-    { name = "mkdocs-material", specifier = ">=9.5" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.27" },
-    { name = "pymdown-extensions", specifier = ">=10" },
+sdist = { url = "https://files.pythonhosted.org/packages/3c/b7/14316526bc61e8dddd9af0fc0e9bd6ba457a44a1f2dc90a42f0c052ae465/forward_sdk-0.1.0.tar.gz", hash = "sha256:ad8d42ae47afef1e6b87f0f5a46b01b8a4592a053505e16f94806cf4160b071d", size = 387806, upload-time = "2026-09-07T14:19:19.751Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/fc/d227d16ae600f744909ec50e7cf10b964fc6a2c69135b8f4a93aaac7c51e/forward_sdk-0.1.0-py3-none-any.whl", hash = "sha256:84d5a94ba300f92514f48d24d1e7b25c8074f3b902bbf3a22ecde5fa2e9a4216", size = 227017, upload-time = "2026-09-07T14:19:18.289Z" },
 ]
 
 [[package]]
