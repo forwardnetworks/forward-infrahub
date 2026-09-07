@@ -21,6 +21,14 @@ pip install forward-infrahub
 That registers the `forwardnetworks` adapter with infrahub-sync; no `adapter:`
 line is needed in `config.yml`.
 
+**One caveat before you run a sync.** infrahub-sync 2.0.0 cannot currently sync
+an attribute that is not Text: its model generator types every field as `str`,
+and its Infrahub adapter stringifies every value it reads back. Numbers, booleans
+and lists all fail, so this affects any adapter, not only this one. Two small
+patches are in [`upstream/`](upstream/) with the diagnosis and how to apply
+them. They are upstream bugs and belong there; this package does not work around
+them.
+
 ## Use it
 
 Start from [`examples/forwardnetworks_to_infrahub`](examples/forwardnetworks_to_infrahub),
@@ -106,3 +114,7 @@ uv run mypy
 The test suite needs neither Forward nor Infrahub: `replay_fixture` points the
 adapter at a JSON file of rows, which is also the fastest way to see what the
 adapter produces.
+
+The adapter has been run end to end against Infrahub 1.11.2 with the schema
+library loaded: a full sync of the bundled fixture creates 24 objects across all
+18 kinds, and an immediate second run reports no differences.
