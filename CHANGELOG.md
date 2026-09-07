@@ -22,5 +22,8 @@
 
 - Depends on `forward-sdk==0.1.4` from PyPI, pinned exactly because the SDK is
   pre-1.0.
-- `infrahub-sync` 2.0.0 needs the two patches in `upstream/` before it can sync
-  any attribute that is not Text.
+- Pins `infrahub-sdk<1.23`, where the class inheritance infrahub-sync's model
+  generator depends on was removed. Without the pin every generated field is
+  typed `str` and rejects its own value.
+- `infrahub-sync` 2.0.0 also stringifies every attribute it reads back, which
+  is fixed on their `main` but unreleased. See `upstream/`.

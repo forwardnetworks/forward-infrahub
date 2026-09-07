@@ -313,6 +313,7 @@ source = { editable = "." }
 dependencies = [
     { name = "diffsync" },
     { name = "forward-sdk" },
+    { name = "infrahub-sdk", extra = ["all"] },
     { name = "infrahub-sync" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -332,6 +333,7 @@ dev = [
 requires-dist = [
     { name = "diffsync", specifier = ">=2.0,<3" },
     { name = "forward-sdk", specifier = "==0.1.4" },
+    { name = "infrahub-sdk", extras = ["all"], specifier = ">=1.17,<1.23" },
     { name = "infrahub-sync", specifier = ">=2.0,<2.1" },
     { name = "pydantic", specifier = ">=2.6,<3" },
     { name = "pyyaml", specifier = ">=6" },
@@ -436,7 +438,7 @@ wheels = [
 
 [[package]]
 name = "infrahub-sdk"
-version = "1.23.1"
+version = "1.22.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dulwich" },
@@ -449,9 +451,9 @@ dependencies = [
     { name = "ujson" },
     { name = "whenever" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ec/b8/092f2d1cb850b8174952ffee638d977319b6e17499e25d3e8c6bbce37a25/infrahub_sdk-1.23.1.tar.gz", hash = "sha256:328ea5e2513622709687d1176a3e3c5a5b4f784a49dbfa9a16473c28ceed4b0c", size = 1466911, upload-time = "2026-08-28T13:54:20.895Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/40/1b71f1e25dfe62d1a905e888c278acb3cae4417c4fded8b96f91b0271d6a/infrahub_sdk-1.22.3.tar.gz", hash = "sha256:fc8eb0ef78026bac20c1c1297ffe34e3b36d34ab27e283af926e1a91c96279ee", size = 1330648, upload-time = "2026-08-19T13:13:56.62Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/68/479ef12b7f7b10d9230f4f8fdb9c0ea0daf0b9fa4f1b73536471ef887dbe/infrahub_sdk-1.23.1-py3-none-any.whl", hash = "sha256:f5ca434190eb8ecabfc7c7f0734ff7be4ed5a3e02b3a0054236d61026db73549", size = 312463, upload-time = "2026-08-28T13:54:19.316Z" },
+    { url = "https://files.pythonhosted.org/packages/56/a4/0d4e24917dd68658ee5509f3bf7f42df65a950c456b9e41bb348c2b3221f/infrahub_sdk-1.22.3-py3-none-any.whl", hash = "sha256:23dbaa09a3363d5818c36d2f1df2d069328e4805f34ab9994425365017021106", size = 278454, upload-time = "2026-08-19T13:13:55.312Z" },
 ]
 
 [package.optional-dependencies]
@@ -466,7 +468,6 @@ all = [
     { name = "pytest" },
     { name = "pyyaml" },
     { name = "rich" },
-    { name = "ruamel-yaml" },
     { name = "typer" },
 ]
 
@@ -1231,15 +1232,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/3a/0316b28d0761c6734d6bc14e770d85506c986c85ffb239e688eeaab2c2bc/rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098", size = 223149, upload-time = "2024-11-01T16:43:57.873Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90", size = 242424, upload-time = "2024-11-01T16:43:55.817Z" },
-]
-
-[[package]]
-name = "ruamel-yaml"
-version = "0.19.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c7/3b/ebda527b56beb90cb7652cb1c7e4f91f48649fbcd8d2eb2fb6e77cd3329b/ruamel_yaml-0.19.1.tar.gz", hash = "sha256:53eb66cd27849eff968ebf8f0bf61f46cdac2da1d1f3576dd4ccee9b25c31993", size = 142709, upload-time = "2026-01-02T16:50:31.84Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/0c/51f6841f1d84f404f92463fc2b1ba0da357ca1e3db6b7fbda26956c3b82a/ruamel_yaml-0.19.1-py3-none-any.whl", hash = "sha256:27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93", size = 118102, upload-time = "2026-01-02T16:50:29.201Z" },
 ]
 
 [[package]]

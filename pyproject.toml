@@ -21,6 +21,12 @@ classifiers = [
 ]
 dependencies = [
   "infrahub-sync>=2.0,<2.1",
+  # infrahub-sync's model generator decides a field's type with
+  # isinstance(item, AttributeSchema), and infrahub-sdk 1.23.0 stopped the
+  # read-side AttributeSchemaAPI subclassing that. Every field then falls
+  # through to str and rejects its own value. Their issue #187, PR #188 open.
+  # Below 1.23 the inheritance holds and the generator is correct.
+  "infrahub-sdk[all]>=1.17,<1.23",
   "diffsync>=2.0,<3",
   # Pinned exactly: the SDK is pre-1.0 and its surface is still moving.
   "forward-sdk==0.1.4",

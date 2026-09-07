@@ -21,13 +21,20 @@ pip install forward-infrahub
 That registers the `forwardnetworks` adapter with infrahub-sync; no `adapter:`
 line is needed in `config.yml`.
 
-**One caveat before you run a sync.** infrahub-sync 2.0.0 cannot currently sync
-an attribute that is not Text: its model generator types every field as `str`,
-and its Infrahub adapter stringifies every value it reads back. Numbers, booleans
-and lists all fail, so this affects any adapter, not only this one. Two small
-patches are in [`upstream/`](upstream/) with the diagnosis and how to apply
-them. They are upstream bugs and belong there; this package does not work around
-them.
+**One caveat before you run a sync.** infrahub-sync 2.0.0 has a bug that stops
+any adapter syncing an attribute that is not Text: the Infrahub adapter
+stringifies every value it reads back, so a list returns as the printed form of
+a list. It is already fixed on their `main` but is in no release. Apply
+[`upstream/0002`](upstream/) or install infrahub-sync from `main`.
+
+```bash
+forward-infrahub check-environment    # says whether your install has it
+```
+
+A second bug of the same kind, where the generator typed every field as `str`,
+is avoided by this package pinning `infrahub-sdk<1.23`. That is where the
+inheritance the generator relies on was removed, and their
+[issue #187](https://github.com/opsmill/infrahub-sync/issues/187) tracks it.
 
 ## Use it
 
