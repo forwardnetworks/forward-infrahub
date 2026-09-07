@@ -8,13 +8,13 @@
     "numProcessingFailureEndpoints": 0
   },
   "forward_manufacturers": [
-    {"name": "Vendor.EXAMPLE", "scope_devices": ["device-001", "device-002"]}
+    {"name": "Vendor.ARISTA", "scope_devices": ["device-001", "device-002"]}
   ],
   "forward_platforms": [
-    {"name": "EXAMPLE_OS", "manufacturer": "Vendor.EXAMPLE", "scope_devices": ["device-001", "device-002"]}
+    {"name": "ARISTA_EOS", "manufacturer": "Vendor.ARISTA", "scope_devices": ["device-001", "device-002"]}
   ],
   "forward_device_types": [
-    {"manufacturer": "Vendor.EXAMPLE", "name": "MODEL-A", "scope_devices": ["device-001", "device-002"]}
+    {"manufacturer": "Vendor.ARISTA", "name": "MODEL-A", "scope_devices": ["device-001", "device-002"]}
   ],
   "forward_locations": [
     {"name": "500 W 30TH ST", "city": "Example City", "country": "United States",
@@ -25,14 +25,14 @@
      "scope_devices": ["device-002"]}
   ],
   "forward_devices": [
-    {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
-     "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+    {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.ARISTA",
+     "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "ARISTA_EOS",
      "os_version": "1.2.3", "serial_number": "SERIAL-001",
-     "description": "Vendor.EXAMPLE MODEL-A EXAMPLE_OS 1.2.3"},
-    {"name": "device-002", "location": "500 W 30TH STREET", "vendor": "Vendor.EXAMPLE",
-     "device_type": "DeviceType.ROUTER", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+     "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.3"},
+    {"name": "device-002", "location": "500 W 30TH STREET", "vendor": "Vendor.ARISTA",
+     "device_type": "DeviceType.ROUTER", "model": "MODEL-A", "platform": "ARISTA_EOS",
      "os_version": "1.2.4", "serial_number": "SERIAL-002",
-     "description": "Vendor.EXAMPLE MODEL-A EXAMPLE_OS 1.2.4"}
+     "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.4"}
   ],
   "forward_interfaces": [
     {"device": "device-001", "name": "Ethernet1", "kind": "physical", "type": "10gbase-t",
@@ -100,15 +100,15 @@
   "diffs": {
     "forward_devices": [
       {"type": "MODIFIED",
-       "before": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
-                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+       "before": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.ARISTA",
+                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "ARISTA_EOS",
                   "os_version": "1.2.2", "serial_number": "SERIAL-001", "description": "old"},
-       "after": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
-                 "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+       "after": {"name": "device-001", "location": "500 W 30TH ST", "vendor": "Vendor.ARISTA",
+                 "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "ARISTA_EOS",
                  "os_version": "1.2.3", "serial_number": "SERIAL-001", "description": "new"}},
       {"type": "DELETED",
-       "before": {"name": "device-003", "location": "500 W 30TH ST", "vendor": "Vendor.EXAMPLE",
-                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "EXAMPLE_OS",
+       "before": {"name": "device-003", "location": "500 W 30TH ST", "vendor": "Vendor.ARISTA",
+                  "device_type": "DeviceType.SWITCH", "model": "MODEL-A", "platform": "ARISTA_EOS",
                   "os_version": "1.0.0", "serial_number": "SERIAL-003", "description": "gone"},
        "after": null}
     ]

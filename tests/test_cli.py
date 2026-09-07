@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -118,3 +119,20 @@ def test_audit_separates_cannot_ask_from_not_published() -> None:
     entries = audit(client, "/dir", ["forward_devices.nqe"])
     assert [e.status for e in entries] == [UNAVAILABLE]
     assert not entries[0].ok
+
+
+def test_the_audit_asks_the_sdk_for_source_the_way_the_sdk_expects() -> None:
+    """Exercises the real client, not a stub of it.
+
+    A stub of the repository hid two total failures already: a resolution that
+    dropped its commit, and a source lookup that asked at the wrong commit and
+    could never return anything. Both passed a fake that raised or returned what
+    this code expected. This asserts against the released SDK's own surface, so
+    a change in what it accepts or returns fails here rather than in production.
+    """
+    from forward_sdk._sync.services.nqe_repo import NqeRepository
+
+    signature = inspect.signature(NqeRepository.source)
+    assert list(signature.parameters) == ["self", "path", "repository"]
+    assert signature.return_annotation == "str"
+    assert "ForwardNotFoundError" in (inspect.getdoc(NqeRepository.source) or "")

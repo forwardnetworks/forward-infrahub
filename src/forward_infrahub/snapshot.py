@@ -79,10 +79,9 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
 
     The clauses must select the same devices as
     :class:`~forward_infrahub.scope.ForwardDeviceScope`, or the run would pick a
-    snapshot on the strength of devices it then discards. That parity is what
-    the token round-trip below is for: the scope compares case-folded tokens,
-    and upper-casing one returns the enum member name Forward compares against,
-    so ``cisco``, ``CISCO`` and ``Vendor.CISCO`` all reach the same clause.
+    snapshot on the strength of devices it then discards. The settings have
+    already resolved each allowlist entry to a real enum member, so nothing here
+    has to reason about how a member name is spelled.
 
     Vendor and device type are enums, and NQE compares an enum against a named
     constant rather than a string; the string form is rejected outright. Model
@@ -95,8 +94,7 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
         ("device.platform.deviceType", "DeviceType", settings.device_types),
     )
     for expression, enum_type, values in enum_fields:
-        members = sorted({scope_token(value).upper() for value in values if str(value).strip()})
-        predicate = enum_one_of(expression, enum_type, members)
+        predicate = enum_one_of(expression, enum_type, sorted(set(values)))
         if predicate:
             clauses.append(f"where {predicate}")
 

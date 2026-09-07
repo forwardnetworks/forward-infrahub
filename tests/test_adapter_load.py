@@ -21,8 +21,8 @@ def one(adapter: Any, kind: str, uid: str) -> Any:
 
 
 def test_every_kind_loads(adapter: Any) -> None:
-    assert uids(adapter, "OrganizationManufacturer") == {"Example"}
-    assert uids(adapter, "DcimPlatform") == {"EXAMPLE_OS"}
+    assert uids(adapter, "OrganizationManufacturer") == {"Arista"}
+    assert uids(adapter, "DcimPlatform") == {"ARISTA_EOS"}
     assert uids(adapter, "DcimDeviceType") == {"MODEL-A"}
     assert uids(adapter, "DcimDevice") == {"device-001", "device-002"}
     assert uids(adapter, "IpamVRF") == {"BLUE"}
@@ -30,9 +30,9 @@ def test_every_kind_loads(adapter: Any) -> None:
 
 
 def test_vendor_transform_titles_the_enum(adapter: Any) -> None:
-    """Vendor.EXAMPLE is a Forward enum; Infrahub should show a readable name."""
-    assert one(adapter, "OrganizationManufacturer", "Example").name == "Example"
-    assert one(adapter, "DcimPlatform", "EXAMPLE_OS").manufacturer == "Example"
+    """Vendor.ARISTA is a Forward enum; Infrahub should show a readable name."""
+    assert one(adapter, "OrganizationManufacturer", "Arista").name == "Arista"
+    assert one(adapter, "DcimPlatform", "ARISTA_EOS").manufacturer == "Arista"
 
 
 def test_location_variants_collapse_to_one_site(adapter: Any) -> None:
@@ -45,7 +45,7 @@ def test_device_carries_serial_and_references(adapter: Any) -> None:
     device = one(adapter, "DcimDevice", "device-001")
     assert device.serial_number == "SERIAL-001"
     assert device.device_type == "MODEL-A"
-    assert device.platform == "EXAMPLE_OS"
+    assert device.platform == "ARISTA_EOS"
     assert device.status == "active"
 
 
@@ -150,8 +150,8 @@ def test_scope_fingerprint_is_stable_and_set(adapter: Any, replay_config: SyncCo
     ("vendors", "expected"),
     [
         (["cisco"], set()),
-        (["Vendor.EXAMPLE"], {"device-001", "device-002"}),
-        (["example"], {"device-001", "device-002"}),
+        (["Vendor.ARISTA"], {"device-001", "device-002"}),
+        (["arista"], {"device-001", "device-002"}),
     ],
 )
 def test_device_scope_accepts_enum_or_token(
