@@ -1,6 +1,9 @@
 /**
  * @intent Forward platforms
- * @description Forward operating-system families as DcimPlatform rows.
+ * @description Forward operating-system families as DcimPlatform rows. toString
+ *   renders an enum as Type.MEMBER, so the type prefix is stripped: a platform in
+ *   Infrahub should read ARISTA_EOS rather than VendorOs.ARISTA_EOS. The devices
+ *   query strips it the same way, because the two are joined on this value.
  * @contract-version v3-infrahub
  */
 
@@ -10,7 +13,7 @@ foreach row in (
   where device.snapshotInfo.result == DeviceSnapshotResult.completed
   where device.platform.vendor != Vendor.FORWARD_CUSTOM
   select distinct {
-    name: toString(device.platform.os),
+    name: replace(toString(device.platform.os), "VendorOs.", ""),
     manufacturer: toString(device.platform.vendor),
     scope_device: device.name
   }

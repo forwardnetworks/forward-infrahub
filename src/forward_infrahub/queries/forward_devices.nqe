@@ -10,7 +10,7 @@ where device.snapshotInfo.result == DeviceSnapshotResult.completed
 where device.platform.vendor != Vendor.FORWARD_CUSTOM
 let vendor = toString(device.platform.vendor)
 let model = if isPresent(device.platform.model) then device.platform.model else ""
-let platform = toString(device.platform.os)
+let platform = replace(toString(device.platform.os), "VendorOs.", "")
 let os_version = if isPresent(device.platform.osVersion) then device.platform.osVersion else ""
 let chassis_serial = min(
   foreach component in device.platform.components
