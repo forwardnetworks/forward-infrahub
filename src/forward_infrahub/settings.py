@@ -13,6 +13,7 @@ from forward_sdk.models import DeviceType, Vendor
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forward_infrahub import __version__
+from forward_infrahub.nqe_types import nqe_members
 from forward_infrahub.replay import ReplayClient
 from forward_infrahub.scope import scope_token
 
@@ -37,7 +38,7 @@ def canonical_enum_values(values: Any, enum_cls: type[Enum], setting: str) -> li
     with no member is a typo and is refused here, before it becomes a query
     that quietly matches nothing.
     """
-    known = {member.value for member in enum_cls}
+    known = nqe_members(enum_cls.__name__, {member.value for member in enum_cls})
     canonical: list[str] = []
     for value in values or []:
         token = scope_token(value).upper()
@@ -48,8 +49,10 @@ def canonical_enum_values(values: Any, enum_cls: type[Enum], setting: str) -> li
             hint = f" Did you mean {' or '.join(close)}?" if close else ""
             raise ValueError(
                 f"{setting}: {value!r} is not one of the {len(known)} "
-                f"{enum_cls.__name__} values known to forward-sdk {sdk_version}.{hint}"
-                " If Forward added it after that release, upgrade forward-sdk."
+                f"{enum_cls.__name__} members this build knows.{hint} The list comes from "
+                f"forward-sdk {sdk_version}, corrected where NQE and the REST schema name a "
+                "value differently. If Forward added it since, check the NQE data-model "
+                "reference and upgrade forward-sdk."
             )
         canonical.append(token)
     return canonical

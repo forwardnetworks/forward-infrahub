@@ -57,3 +57,38 @@ def test_an_empty_allowlist_means_every_device() -> None:
     settings = AdapterSettings()
     assert settings.device_vendors == []
     assert not settings.device_scope_active
+
+
+def test_a_vendor_nqe_names_but_the_sdk_does_not_is_accepted() -> None:
+    """NQE and the REST schema disagree about some names, and NQE is what runs.
+
+    The SDK generates its enums from the REST schema, where this vendor is GD.
+    A predicate is built from these names, so using the REST spelling would emit
+    a member NQE has no such thing as.
+    """
+    assert AdapterSettings(device_vendors=["general_dynamics"]).device_vendors == [
+        "GENERAL_DYNAMICS"
+    ]
+    assert AdapterSettings(device_vendors=["azure"]).device_vendors == ["AZURE"]
+
+
+@pytest.mark.parametrize("rest_only", ["gd", "microsoft", "ibm"])
+def test_a_vendor_only_the_rest_schema_names_is_refused(rest_only: str) -> None:
+    """Accepting it would build a predicate NQE rejects at compile time."""
+    with pytest.raises(ValueError, match="members this build knows"):
+        AdapterSettings(device_vendors=[rest_only])
+
+
+def test_the_two_namespaces_do_not_claim_the_same_name() -> None:
+    """A name cannot be both NQE-only and REST-only; that would be a bad record."""
+    from forward_infrahub.nqe_types import NQE_ONLY_MEMBERS, REST_ONLY_MEMBERS
+
+    for enum_type, nqe_only in NQE_ONLY_MEMBERS.items():
+        assert not (nqe_only & REST_ONLY_MEMBERS.get(enum_type, frozenset()))
+
+
+def test_rest_only_names_really_are_in_the_sdk_enum() -> None:
+    """So the correction shrinks if the SDK catches up, rather than going stale."""
+    from forward_infrahub.nqe_types import REST_ONLY_MEMBERS
+
+    assert REST_ONLY_MEMBERS["Vendor"] <= {member.value for member in Vendor}
