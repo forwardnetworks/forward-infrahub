@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- A response body the Forward SDK could not parse no longer escapes the
+  adapter's error handling. Every fetch funnels failures into
+  `ForwardLoadError` with one `except ForwardError`, but until forward-sdk
+  0.1.5 an unparseable body raised pydantic's `ValidationError`, which is not a
+  `ForwardError` and walked straight through. The pin moves to 0.1.5, and a
+  test drives the installed SDK to check that nothing it raises falls outside
+  that hierarchy.
+- `forward-infrahub` reports a Forward error as one line rather than a
+  traceback through SDK internals. An expired password or an unreachable
+  appliance is an operating condition, not a defect in this tool. `-v` still
+  prints the traceback.
+
 ## [0.1.0a2] - 2026-09-07
 
 ### Fixed

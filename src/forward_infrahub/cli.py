@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 import yaml
+from forward_sdk import ForwardError
 
 from forward_infrahub import __version__
 from forward_infrahub.contracts import check_contracts
@@ -214,7 +215,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(levelname)s %(message)s",
     )
     handler: Any = args.handler
-    result: int = handler(args)
+    try:
+        result: int = handler(args)
+    except ForwardError as exc:
+        # An expired password or an unreachable appliance is an ordinary
+        # operating condition, not a defect in this tool. Reporting it as a
+        # traceback through SDK internals buries the one line that says what
+        # to fix. -v keeps the traceback for when the cause is not obvious.
+        logger.error("%s", exc)
+        if args.verbose:
+            logger.exception("full traceback")
+        return 1
     return result
 
 

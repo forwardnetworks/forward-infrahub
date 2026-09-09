@@ -29,7 +29,11 @@ dependencies = [
   "infrahub-sdk[all]>=1.17,<1.23",
   "diffsync>=2.0,<3",
   # Pinned exactly: the SDK is pre-1.0 and its surface is still moving.
-  "forward-sdk==0.1.4",
+  # 0.1.5 is the floor for a reason. Below it, a response body the SDK could
+  # not parse raised pydantic's ValidationError, which is not a ForwardError
+  # and so walked straight through every `except ForwardError` here: a bad
+  # body ended a run with a parser traceback instead of ForwardLoadError.
+  "forward-sdk==0.1.5",
   "pydantic>=2.6,<3",
   "pyyaml>=6",
 ]

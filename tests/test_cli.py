@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from forward_sdk import ForwardNotFoundError, ForwardServerError
+from forward_sdk import ForwardAuthError, ForwardNotFoundError, ForwardServerError
 
 from forward_infrahub.cli import load_settings, main
 from forward_infrahub.publish import (
@@ -136,3 +136,21 @@ def test_the_audit_asks_the_sdk_for_source_the_way_the_sdk_expects() -> None:
     assert list(signature.parameters) == ["self", "path", "repository"]
     assert signature.return_annotation == "str"
     assert "ForwardNotFoundError" in (inspect.getdoc(NqeRepository.source) or "")
+
+
+def test_a_forward_error_is_reported_as_one_line(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An expired password is an operating condition, not a crash.
+
+    A 401 used to end ``resolve-snapshot`` with a traceback through SDK
+    internals, which buries the one line saying what the operator must fix.
+    """
+
+    def explode(_settings: Any) -> Any:
+        raise ForwardAuthError("GET /api/networks/1/snapshots failed with HTTP 401", status=401)
+
+    monkeypatch.setattr("forward_infrahub.cli.build_client", explode)
+    assert main(["resolve-snapshot", "--config", str(EXAMPLE_DIR / "config.yml")]) == 1
+    assert "HTTP 401" in caplog.text
+    assert "Traceback" not in caplog.text
