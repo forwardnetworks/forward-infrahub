@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: scrub-check
+        name: no customer identifiers in anything published
+        entry: python scripts/scrub_check.py --staged
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -36,9 +36,9 @@ def test_vendor_transform_titles_the_enum(adapter: Any) -> None:
 
 
 def test_location_variants_collapse_to_one_site(adapter: Any) -> None:
-    """'30TH ST' and '30TH STREET' are the same site, and devices must not scatter."""
-    assert uids(adapter, "LocationSite") == {"500 W 30TH ST"}
-    assert one(adapter, "DcimDevice", "device-002").location == "500 W 30TH ST"
+    """'ELM ST' and 'ELM STREET' are the same site, and devices must not scatter."""
+    assert uids(adapter, "LocationSite") == {"120 W ELM ST"}
+    assert one(adapter, "DcimDevice", "device-002").location == "120 W ELM ST"
 
 
 def test_device_carries_serial_and_references(adapter: Any) -> None:

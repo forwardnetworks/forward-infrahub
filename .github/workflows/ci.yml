@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    # infrahub-sync v3 is an unreleased branch that moves most days. This runs
+    # against whatever is at its head, so upstream drift is reported here
+    # rather than discovered during somebody's sync.
+    - cron: "17 5 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,9 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor and the ceiling. infrahub-sync supports neither below 3.10
-        # nor 3.14, and the floor is what the type checker targets.
-        python: ["3.10", "3.13"]
+        # The floor, the ceiling, and the versions between: infrahub-sync
+        # supports neither below 3.10 nor 3.14, and the floor is what the type
+        # checker targets.
+        python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -30,9 +36,9 @@ jobs:
       - name: Types
         run: uv run mypy
       - name: Tests
-        run: uv run pytest -q
+        run: uv run pytest -q -W error::UserWarning
 
-  environment:
+  package:
     # The bundled queries and the identity rules are checked without a network,
     # so a change to either fails here rather than during somebody's sync.
     runs-on: ubuntu-latest
@@ -53,4 +59,35 @@ jobs:
           assert any(n.endswith("schemas/forward_cloud.yml") for n in names), "schema missing"
           assert any(n.endswith("entry_points.txt") for n in names), "entry point missing"
           print(f"wheel carries {queries} queries, the schema and the entry point")
+          PY
+
+  upstream:
+    # Keeping pace with infrahub-sync v3 rather than pinning away from it. A
+    # failure here is upstream moving, not this package breaking, so it does
+    # not gate a pull request.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Take infrahub-sync from the head of its branch
+        run: uv lock --upgrade-package infrahub-sync
+      - name: Report which commit that is
+        run: uv run python -c "import importlib.metadata as m; print('infrahub-sync', m.version('infrahub-sync'))"
+      # Not editable: the registered path resolves adapters from installed
+      # distributions only, and an editable install is refused there.
+      - run: uv sync --all-groups --no-editable
+      - name: Tests
+        run: uv run pytest -q
+      - name: The adapter still resolves through its entry point
+        run: |
+          uv run python - <<'PY'
+          from infrahub_sync.plugin_loader import PluginLoader
+          import forward_infrahub.capabilities as capabilities
+          import infrahub_sync.configuration.capabilities as table
+
+          resolved = PluginLoader.installed_only_loader().resolve("forwardnetworks")
+          assert resolved.__name__ == "ForwardnetworksAdapter", resolved
+          assert capabilities.ADAPTER_NAME in table.BUILTIN_ADAPTER_CAPABILITIES
+          print(f"{resolved.__name__} resolves, and declares its capabilities")
           PY

@@ -1,7 +1,7 @@
 """Canonicalization helpers for Forward identity strings.
 
 Forward location keys arrive as raw concatenated strings such as
-``8ng5+500 W 30TH ST+NEW YORK+NY+10001``. The same physical site shows up under
+``8ng5+120 W ELM ST+NEW YORK+NY+10001``. The same physical site shows up under
 formatting variants (``ST`` vs ``STREET``, mixed case, doubled spaces), and the
 device rows reference those same raw keys. Left untouched, every variant becomes
 a distinct Infrahub location and devices scatter across the duplicates.
@@ -10,7 +10,7 @@ a distinct Infrahub location and devices scatter across the duplicates.
 dedup/lookup key — the original first-seen name is still what gets written. It
 case-folds, collapses whitespace, and standardizes common US street-suffix
 abbreviations so true formatting variants collapse, while genuinely different
-addresses (e.g. ``30TH`` vs ``33rd``) stay distinct.
+addresses (e.g. ``ELM`` vs ``ELMWOOD``) stay distinct.
 """
 
 from __future__ import annotations

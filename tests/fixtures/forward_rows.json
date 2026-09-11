@@ -38,7 +38,7 @@
   ],
   "forward_locations": [
     {
-      "name": "500 W 30TH ST",
+      "name": "120 W ELM ST",
       "city": "Example City",
       "country": "United States",
       "description": "Example City, United States",
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "name": "500 W 30TH STREET",
+      "name": "120 W ELM STREET",
       "city": "Example City",
       "country": "United States",
       "description": "Example City, United States",
@@ -61,7 +61,7 @@
   "forward_devices": [
     {
       "name": "device-001",
-      "location": "500 W 30TH ST",
+      "location": "120 W ELM ST",
       "vendor": "Vendor.ARISTA",
       "device_type": "DeviceType.SWITCH",
       "model": "MODEL-A",
@@ -72,7 +72,7 @@
     },
     {
       "name": "device-002",
-      "location": "500 W 30TH STREET",
+      "location": "120 W ELM STREET",
       "vendor": "Vendor.ARISTA",
       "device_type": "DeviceType.ROUTER",
       "model": "MODEL-A",
@@ -157,7 +157,7 @@
   ],
   "forward_vlans": [
     {
-      "site": "500 W 30TH STREET",
+      "site": "120 W ELM STREET",
       "vid": 100,
       "name": "Users",
       "status": "active",
@@ -290,7 +290,7 @@
         "type": "MODIFIED",
         "before": {
           "name": "device-001",
-          "location": "500 W 30TH ST",
+          "location": "120 W ELM ST",
           "vendor": "Vendor.ARISTA",
           "device_type": "DeviceType.SWITCH",
           "model": "MODEL-A",
@@ -301,7 +301,7 @@
         },
         "after": {
           "name": "device-001",
-          "location": "500 W 30TH ST",
+          "location": "120 W ELM ST",
           "vendor": "Vendor.ARISTA",
           "device_type": "DeviceType.SWITCH",
           "model": "MODEL-A",
@@ -315,7 +315,7 @@
         "type": "DELETED",
         "before": {
           "name": "device-003",
-          "location": "500 W 30TH ST",
+          "location": "120 W ELM ST",
           "vendor": "Vendor.ARISTA",
           "device_type": "DeviceType.SWITCH",
           "model": "MODEL-A",

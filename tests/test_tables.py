@@ -72,32 +72,32 @@ def ctx(**kwargs: Any) -> AugmentContext:
 
 def test_location_variants_collapse_and_keep_the_first_name() -> None:
     rows = [
-        {"name": "500 W 30TH ST", "scope_devices": ["a"]},
-        {"name": "500 W 30th Street", "scope_devices": ["b"]},
+        {"name": "120 W ELM ST", "scope_devices": ["a"]},
+        {"name": "120 W Elm Street", "scope_devices": ["b"]},
     ]
     context = ctx()
     out = augment_locations(rows, context)
-    assert [row["name"] for row in out] == ["500 W 30TH ST"]
+    assert [row["name"] for row in out] == ["120 W ELM ST"]
     assert out[0]["scope_devices"] == ["a", "b"]
-    assert context.location_aliases == {"500 W 30th Street": "500 W 30TH ST"}
+    assert context.location_aliases == {"120 W Elm Street": "120 W ELM ST"}
 
 
 def test_collapsing_can_be_turned_off() -> None:
-    rows = [{"name": "500 W 30TH ST"}, {"name": "500 W 30th Street"}]
+    rows = [{"name": "120 W ELM ST"}, {"name": "120 W Elm Street"}]
     out = augment_locations(rows, ctx(normalize_location_names=False))
     assert len(out) == 2
 
 
 def test_genuinely_different_addresses_stay_apart() -> None:
-    rows = [{"name": "30 W 30TH ST"}, {"name": "33 W 30TH ST"}]
+    rows = [{"name": "10 W ELM ST"}, {"name": "12 W ELM ST"}]
     assert len(augment_locations(rows, ctx())) == 2
 
 
 def test_devices_follow_the_collapsed_site_name() -> None:
     context = ctx()
-    augment_locations([{"name": "500 W 30TH ST"}, {"name": "500 W 30th Street"}], context)
-    out = augment_devices([{"name": "d1", "location": "500 W 30th Street"}], context)
-    assert out[0]["location"] == "500 W 30TH ST"
+    augment_locations([{"name": "120 W ELM ST"}, {"name": "120 W Elm Street"}], context)
+    out = augment_devices([{"name": "d1", "location": "120 W Elm Street"}], context)
+    assert out[0]["location"] == "120 W ELM ST"
 
 
 def test_an_unassigned_site_is_added_only_when_named() -> None:
