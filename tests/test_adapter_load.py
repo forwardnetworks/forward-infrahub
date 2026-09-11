@@ -53,13 +53,50 @@ def test_interfaces_split_by_kind(adapter: Any) -> None:
     assert uids(adapter, "InterfacePhysical") == {
         "device-001__Ethernet1",
         "device-002__Ethernet1",
+        "device-002__Ethernet2",
     }
     assert uids(adapter, "InterfaceVirtual") == {"device-001__Loopback0"}
+    assert uids(adapter, "InterfaceLag") == {"device-001__Port-Channel1"}
 
 
-def test_interface_status_follows_operational_state(adapter: Any) -> None:
+def test_interface_status_distinguishes_dark_from_switched_off(adapter: Any) -> None:
+    """Admin-down is somebody's decision; admin-up and dark is an unused port."""
     assert one(adapter, "InterfacePhysical", "device-001__Ethernet1").status == "active"
-    assert one(adapter, "InterfacePhysical", "device-002__Ethernet1").status == "disabled"
+    assert one(adapter, "InterfacePhysical", "device-002__Ethernet1").status == "free"
+    assert one(adapter, "InterfacePhysical", "device-002__Ethernet2").status == "disabled"
+
+
+def test_a_member_names_its_lag(adapter: Any) -> None:
+    lag = one(adapter, "InterfaceLag", "device-001__Port-Channel1")
+    assert lag.bundle_number == 1
+    assert one(adapter, "InterfacePhysical", "device-001__Ethernet1").bundle == (
+        "device-001__Port-Channel1"
+    )
+
+
+def test_vlan_membership_survives_a_collapsed_site_name(adapter: Any) -> None:
+    """The access port names its site the other way; the key must still resolve.
+
+    The VLAN is written under one site name and the port reports another
+    spelling of it, so this passes only if the reference was built after the
+    names were collapsed, not in the query.
+    """
+    port = one(adapter, "InterfacePhysical", "device-002__Ethernet1")
+    assert port.l2_mode == "access"
+    assert port.untagged_vlan == "VLAN 100 @ 120 W ELM ST"
+    assert uids(adapter, "IpamVLAN") == {"VLAN 100 @ 120 W ELM ST"}
+    assert one(adapter, "IpamVLAN", "VLAN 100 @ 120 W ELM ST").description == "Users"
+
+
+def test_a_trunk_carries_the_vlans_its_device_reports(adapter: Any) -> None:
+    lag = one(adapter, "InterfaceLag", "device-001__Port-Channel1")
+    assert lag.l2_mode == "trunk"
+    assert lag.tagged_vlan == ["VLAN 100 @ 120 W ELM ST"]
+
+
+def test_an_interface_with_no_layer_two_mode_is_left_unset(adapter: Any) -> None:
+    """Absent is not access: a mode Forward did not report must not be invented."""
+    assert one(adapter, "InterfacePhysical", "device-001__Ethernet1").l2_mode is None
 
 
 def test_interface_on_an_unknown_device_is_skipped(adapter: Any) -> None:

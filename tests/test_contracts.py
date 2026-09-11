@@ -67,7 +67,7 @@ def test_example_config_only_reads_contract_columns() -> None:
 
     A transform writes its result back into the row under its own field name,
     so a transform target counts as an available column even though no query
-    produces it.
+    produces it. So does a column an augmentation adds after the fetch.
     """
     config = yaml.safe_load((EXAMPLE_DIR / "config.yml").read_text())
     problems: list[str] = []
@@ -77,6 +77,7 @@ def test_example_config_only_reads_contract_columns() -> None:
         columns: set[str] = set()
         for filename in ref.spec.query_files:
             columns |= set(QUERY_CONTRACT_FIELDS[filename])
+        columns |= set(ref.spec.augmented_columns)
         columns |= {t["field"] for t in element.get("transforms") or []}
         named = [f["mapping"] for f in element["fields"] if f.get("mapping")]
         named += [f["field"] for f in element.get("filters") or []]

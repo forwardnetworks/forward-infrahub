@@ -1,6 +1,6 @@
 /**
  * @intent Forward interfaces
- * @description Interface rows for InterfacePhysical and InterfaceVirtual. kind splits the two: Forward's ethernet interfaces are physical, everything else (loopback, aggregate, tunnel, vlan) is virtual. lag_key is the aggregate's DiffSync identity so a later schema can relate members to their LAG.
+ * @description Interface rows for InterfacePhysical, InterfaceVirtual and InterfaceLag. kind splits the three: ethernet interfaces are physical, aggregates are LAGs, everything else (loopback, tunnel, vlan) is virtual. lag_key is the aggregate's identity, so a member relates to its LAG. mode, untagged_vid and tagged_vids carry the interface's layer-two membership; the VLAN keys are completed by the adapter, which knows how site names were collapsed.
  * @contract-version v3-infrahub
  */
 
@@ -8,10 +8,49 @@
 foreach device in network.devices
 where device.snapshotInfo.result == DeviceSnapshotResult.completed
 where device.platform.vendor != Vendor.FORWARD_CUSTOM
+// Every VLAN this device reports. A trunk's allowed list is matched against
+// it rather than expanded: an allowed range of 1-4094 would otherwise emit
+// thousands of keys for VLANs no row exists for, and one unresolvable key
+// drops the whole interface.
+let device_vids = distinct(foreach ni in device.networkInstances foreach vlan in ni.vlans select vlan.vlanId)
+// The aggregates on this device, so a member never names one that is absent.
+let lag_names = foreach i in device.interfaces where i.interfaceType == IfaceType.IF_AGGREGATE select i.name
+let site = if isPresent(device.locationName) then device.locationName else ""
 foreach interface in device.interfaces
   let is_ethernet = interface.interfaceType == IfaceType.IF_ETHERNET
+  let is_lag = interface.interfaceType == IfaceType.IF_AGGREGATE
   let speed_mbps = if is_ethernet then interface.ethernet.speedMbps else null : Integer
   let aggregate_id = if is_ethernet && isPresent(interface.ethernet.aggregateId) then interface.ethernet.aggregateId else ""
+  let switched =
+    if is_ethernet then interface.ethernet.switchedVlan
+    else if is_lag && isPresent(interface.aggregation) then interface.aggregation.switchedVlan
+    else null : SwitchedVlan
+  // Absent means Forward has nothing to say, which is not the same as access:
+  // the field is left unset rather than defaulted. "unknown" only arises if a
+  // mode appears that this does not name, and the mapping drops it rather
+  // than offering the destination a value its dropdown rejects.
+  let mode =
+    if isPresent(switched)
+      then if switched.interfaceMode == VlanModeType.ACCESS then "access"
+      else if switched.interfaceMode == VlanModeType.TRUNK
+        then if isEmpty(switched.trunkVlans) then "trunk_all" else "trunk"
+      else "unknown"
+    else ""
+  let untagged_candidate =
+    if mode == "access" then switched.accessVlan
+    else if mode == "trunk" || mode == "trunk_all" then switched.nativeVlan
+    else null : Integer
+  let untagged_vid =
+    if isPresent(untagged_candidate) && untagged_candidate in device_vids then untagged_candidate else null : Integer
+  let tagged_vids =
+    if mode == "trunk"
+      then distinct(
+        foreach entry in switched.trunkVlans
+        foreach vid in device_vids
+        where (isPresent(entry.ID) && vid == entry.ID)
+           || (isPresent(entry.RANGE) && vid >= entry.RANGE.from && vid <= entry.RANGE.to)
+        select vid)
+      else (foreach vid in device_vids where false select vid)
   let interface_type =
     if is_ethernet
       then if isPresent(speed_mbps) && speed_mbps == 100000 then "100gbase-x-qsfp28"
@@ -25,18 +64,29 @@ foreach interface in device.interfaces
       else if isPresent(speed_mbps) && speed_mbps == 100 then "100base-tx"
       else "other"
     else if interface.interfaceType == IfaceType.IF_LOOPBACK then "virtual"
-    else if interface.interfaceType == IfaceType.IF_AGGREGATE then "lag"
+    else if is_lag then "lag"
     else "other"
 select {
   device: device.name,
   name: interface.name,
-  kind: if is_ethernet then "physical" else "virtual",
+  kind: if is_ethernet then "physical" else if is_lag then "lag" else "virtual",
   type: interface_type,
+  site: site,
   lag: aggregate_id,
-  lag_key: if aggregate_id != "" then join("__", [device.name, aggregate_id]) else "",
-  mode: "",
-  untagged_vlan: null : Integer,
-  enabled: interface.operStatus == OperStatus.UP,
+  lag_key: if aggregate_id != "" && aggregate_id in lag_names then join("__", [device.name, aggregate_id]) else "",
+  // Trailing digits of the aggregate's name. Zero rather than absent when it
+  // has none: the destination requires a number, and an is_not_empty filter
+  // reads zero as empty, so an absent one would drop ae0 and bond0.
+  lag_number: if is_lag then (
+    if replaceRegexMatches(interface.name, re`[^0-9]`, "") != ""
+      then toNumber(replaceRegexMatches(interface.name, re`[^0-9]`, ""))
+      else 0
+  ) else null : Integer,
+  mode: mode,
+  untagged_vid: untagged_vid,
+  tagged_vids: tagged_vids,
+  admin_up: interface.adminStatus == AdminStatus.UP,
+  oper_up: interface.operStatus == OperStatus.UP,
   mtu: interface.mtu,
   description: if isPresent(interface.description) then interface.description else "",
   speed: if isPresent(speed_mbps) then speed_mbps * 1000 else null : Integer,

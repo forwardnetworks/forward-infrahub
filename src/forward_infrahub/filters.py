@@ -41,8 +41,29 @@ def title_vendor(value: Any) -> str:
     return " ".join(part.capitalize() for part in token.split("_"))
 
 
-def oper_status(enabled: Any) -> str:
-    return "active" if bool(enabled) else "disabled"
+#: The layer-two modes the destination accepts. Anything else is left unset:
+#: a mode Forward reports and this does not name is better absent than
+#: guessed, and the destination rejects a value outside its own list anyway.
+L2_MODES = frozenset({"access", "trunk", "trunk_all"})
+
+
+def interface_status(admin_up: Any, oper_up: Any = None) -> str:
+    """An interface's status from the two states Forward reports separately.
+
+    Administratively down is ``disabled``: somebody turned it off. Up but not
+    carrying is ``free``, which the destination describes as unused — an
+    admin-up port that is dark is exactly that, and calling it disabled would
+    say a person had done something they had not.
+    """
+    if not bool(admin_up):
+        return "disabled"
+    return "active" if bool(oper_up) else "free"
+
+
+def l2_mode(value: Any) -> str | None:
+    """The layer-two mode, or nothing when Forward did not report a usable one."""
+    text = str(value or "").strip().casefold()
+    return text if text in L2_MODES else None
 
 
 def join_key(parts: Iterable[Any]) -> str:
@@ -53,6 +74,7 @@ def join_key(parts: Iterable[Any]) -> str:
 CUSTOM_FILTERS = {
     "enum_token": enum_token,
     "title_vendor": title_vendor,
-    "oper_status": oper_status,
+    "interface_status": interface_status,
+    "l2_mode": l2_mode,
     "join_key": join_key,
 }

@@ -50,12 +50,15 @@ order:
   - DcimDeviceType
   - LocationSite
   - DcimDevice
-  - InterfacePhysical
-  - InterfaceVirtual
+  # VLANs and LAGs before the interfaces that reference them: a reference to a
+  # peer that has not been loaded drops the row that names it.
   - IpamNamespace
   - IpamVRF
   - IpamVLANGroup
   - IpamVLAN
+  - InterfaceLag
+  - InterfacePhysical
+  - InterfaceVirtual
   - IpamPrefix
   - IpamIPAddress
   - DcimCable
@@ -159,6 +162,44 @@ schema_mapping:
         mapping: location
         reference: LocationSite
 
+  # LAGs first: a member references its aggregate, and a reference to a peer
+  # that has not been loaded drops the whole row.
+  - name: InterfaceLag
+    mapping: nqe:interfaces
+    identifiers: [device, name]
+    filters:
+      - field: kind
+        operation: "=="
+        value: lag
+    transforms:
+      - field: status
+        expression: "{{ admin_up | interface_status(oper_up) }}"
+      - field: l2_mode
+        expression: "{{ mode | l2_mode }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: description
+        mapping: description
+      - name: status
+        mapping: status
+      - name: mtu
+        mapping: mtu
+      - name: bundle_number
+        mapping: lag_number
+      - name: l2_mode
+        mapping: l2_mode
+      # The VLAN keys the adapter built after collapsing site-name variants.
+      - name: untagged_vlan
+        mapping: untagged_vlan
+        reference: IpamVLAN
+      - name: tagged_vlan
+        mapping: tagged_vlans
+        reference: IpamVLAN
+      - name: device
+        mapping: device
+        reference: DcimDevice
+
   - name: InterfacePhysical
     mapping: nqe:interfaces
     identifiers: [device, name]
@@ -168,13 +209,15 @@ schema_mapping:
         value: physical
     transforms:
       - field: status
-        expression: "{{ enabled | oper_status }}"
+        expression: "{{ admin_up | interface_status(oper_up) }}"
       # Infrahub upper-cases a MacAddress on write. Forward reports it lower
       # case, so without this every interface differs from itself on the next
       # run and is rewritten: 1,986 of them on the network this was found on.
       # Matching Infrahub's form here is what makes the sync idempotent.
       - field: mac_address
         expression: "{{ mac_address | upper }}"
+      - field: l2_mode
+        expression: "{{ mode | l2_mode }}"
     fields:
       - name: name
         mapping: name
@@ -186,6 +229,18 @@ schema_mapping:
         mapping: mtu
       - name: mac_address
         mapping: mac_address
+      - name: l2_mode
+        mapping: l2_mode
+      # The VLAN keys the adapter built after collapsing site-name variants.
+      - name: untagged_vlan
+        mapping: untagged_vlan
+        reference: IpamVLAN
+      - name: tagged_vlan
+        mapping: tagged_vlans
+        reference: IpamVLAN
+      - name: bundle
+        mapping: lag_key
+        reference: InterfaceLag
       - name: device
         mapping: device
         reference: DcimDevice
@@ -199,7 +254,9 @@ schema_mapping:
         value: virtual
     transforms:
       - field: status
-        expression: "{{ enabled | oper_status }}"
+        expression: "{{ admin_up | interface_status(oper_up) }}"
+      - field: l2_mode
+        expression: "{{ mode | l2_mode }}"
     fields:
       - name: name
         mapping: name
@@ -209,6 +266,15 @@ schema_mapping:
         mapping: status
       - name: mtu
         mapping: mtu
+      - name: l2_mode
+        mapping: l2_mode
+      # The VLAN keys the adapter built after collapsing site-name variants.
+      - name: untagged_vlan
+        mapping: untagged_vlan
+        reference: IpamVLAN
+      - name: tagged_vlan
+        mapping: tagged_vlans
+        reference: IpamVLAN
       - name: device
         mapping: device
         reference: DcimDevice
@@ -257,11 +323,15 @@ schema_mapping:
     # silently merged them down to 57: not rejected, merged, each write
     # rewriting the previous one's id and group.
     #
-    # So the name is qualified with the id and site that identify it, and the
-    # name Forward reports is kept in description. Shorten this if your site
-    # names are long, but keep it unique per site.
+    # So the name is built from the id and the site, which identify it, and
+    # the name Forward reports is kept in description. The Forward name is
+    # deliberately not part of it: a site's VLAN name is whichever of the
+    # reporting devices' names sorts first, so putting it in the identity
+    # would make that identity depend on which devices are in scope. An
+    # interface that carries this VLAN has to name it, and it can build
+    # "VLAN <id> @ <site>" without knowing what any other device called it.
     #
-    # The identity is that qualified name, because a write is keyed on the
+    # The identity is that name, because a write is keyed on the destination's
     # human-friendly id: identifying a VLAN by anything the id does not carry
     # leaves the write unkeyed, and a second run would make a second VLAN.
     mapping: nqe:vlans
@@ -271,7 +341,7 @@ schema_mapping:
         operation: is_not_empty
     transforms:
       - field: qualified_name
-        expression: "{{ name }} ({{ vid }}) @ {{ site }}"
+        expression: "VLAN {{ vid }} @ {{ site }}"
     fields:
       - name: name
         mapping: qualified_name

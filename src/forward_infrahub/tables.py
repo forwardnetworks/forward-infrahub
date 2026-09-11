@@ -24,10 +24,12 @@ Scheme = Literal["nqe", "nqe-path", "nqe-id", "nqe-file"]
 #: How the adapter expands a reference to a generic kind: the concrete kinds it
 #: searches, in order, for the referenced unique id.
 GENERIC_PEERS: dict[str, tuple[str, ...]] = {
-    "InterfaceLayer3": ("InterfacePhysical", "InterfaceVirtual"),
-    "InterfaceLayer2": ("InterfacePhysical", "InterfaceVirtual"),
-    "DcimInterface": ("InterfacePhysical", "InterfaceVirtual"),
+    "InterfaceLayer3": ("InterfacePhysical", "InterfaceVirtual", "InterfaceLag"),
+    "InterfaceLayer2": ("InterfacePhysical", "InterfaceVirtual", "InterfaceLag"),
+    "DcimInterface": ("InterfacePhysical", "InterfaceVirtual", "InterfaceLag"),
     "DcimEndpoint": ("InterfacePhysical",),
+    "GenericInterfaceBundle": ("InterfaceLag",),
+    "IpamGenericVLAN": ("IpamVLAN",),
     "DcimGenericDevice": ("DcimDevice",),
     "DcimPhysicalDevice": ("DcimDevice",),
     "LocationGeneric": ("LocationSite",),
@@ -49,6 +51,13 @@ class AugmentContext:
 
 Augmentation = Callable[[list[Row], AugmentContext], list[Row]]
 
+#: Columns an augmentation adds to a table that its query does not produce.
+#: A mapping may read these, so the drift gate counts them alongside the
+#: query's own contract.
+AUGMENTED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "interfaces": ("untagged_vlan", "tagged_vlans"),
+}
+
 
 @dataclass(frozen=True)
 class TableSpec:
@@ -56,6 +65,10 @@ class TableSpec:
     query_files: tuple[str, ...]
     scope: ScopeKind
     augment: Augmentation | None = None
+
+    @property
+    def augmented_columns(self) -> tuple[str, ...]:
+        return AUGMENTED_COLUMNS.get(self.name, ())
 
     @property
     def scope_column(self) -> str | None:
@@ -119,6 +132,36 @@ def augment_vlans(rows: list[Row], ctx: AugmentContext) -> list[Row]:
     return [_rewrite_location(row, "site", ctx) for row in rows]
 
 
+#: How a VLAN is named, and therefore identified. An interface has to be able
+#: to build this for a VLAN it carries, so it uses only the id and the site --
+#: never the name Forward reports, which is whichever reporting device's name
+#: sorts first and so depends on what is in scope.
+def vlan_identity(vid: Any, site: str) -> str:
+    return f"VLAN {vid} @ {site}"
+
+
+def augment_interfaces(rows: list[Row], ctx: AugmentContext) -> list[Row]:
+    """Complete the VLAN references, once the site names have been collapsed.
+
+    A VLAN is identified by its id and the site it is in, and the site a row
+    names may be a formatting variant that ``augment_locations`` folded into
+    another. The query cannot know that, so it emits the ids and this builds
+    the keys from the site the VLAN was actually written under.
+    """
+    out: list[Row] = []
+    for original in rows:
+        row = _rewrite_location(original, "site", ctx)
+        site = str(row.get("site") or "").strip()
+        untagged = row.get("untagged_vid")
+        row["untagged_vlan"] = (
+            vlan_identity(untagged, site) if untagged is not None and site else ""
+        )
+        tagged = row.get("tagged_vids") or []
+        row["tagged_vlans"] = [vlan_identity(vid, site) for vid in tagged] if site else []
+        out.append(row)
+    return out
+
+
 def augment_namespaces(rows: list[Row], ctx: AugmentContext) -> list[Row]:
     """One namespace per VRF name, plus the built-in ``default`` namespace."""
     seen: dict[str, Row] = {}
@@ -138,7 +181,7 @@ TABLES: dict[str, TableSpec] = {
         TableSpec("device_types", ("forward_device_types.nqe",), "scope_devices"),
         TableSpec("locations", ("forward_locations.nqe",), "scope_devices", augment_locations),
         TableSpec("devices", ("forward_devices.nqe",), "name", augment_devices),
-        TableSpec("interfaces", ("forward_interfaces.nqe",), "device"),
+        TableSpec("interfaces", ("forward_interfaces.nqe",), "device", augment_interfaces),
         TableSpec("vrfs", ("forward_vrfs.nqe",), "scope_devices"),
         TableSpec("ip_namespaces", ("forward_vrfs.nqe",), "scope_devices", augment_namespaces),
         TableSpec("vlans", ("forward_vlans.nqe",), "scope_devices", augment_vlans),
