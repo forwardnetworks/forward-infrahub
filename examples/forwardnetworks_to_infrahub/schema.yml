@@ -3,6 +3,13 @@
 # model. Identity is always the provider's own id, qualified by its parent: a
 # display name can change at any time, and syncing on one would create a second
 # object the next time somebody renamed a VPC in the console.
+#
+# The parent is carried twice: as the relationship, which is what the data
+# means, and as a `parent_key` attribute, which is what a write can be keyed
+# on. infrahub-sync refuses to write any kind whose human-friendly id crosses a
+# relationship, because the mutation it renders would carry no key and a second
+# apply would duplicate the object. The denormalised key is the same string the
+# queries already emit to join these rows, so it costs nothing to carry.
 version: "1.0"
 
 generics:
@@ -65,6 +72,9 @@ nodes:
     menu_placement: CloudAccount
     inherit_from:
       - CloudGenericResource
+    human_friendly_id:
+      - account_key__value
+      - network_id__value
     uniqueness_constraints:
       - - account
         - network_id__value
@@ -72,6 +82,12 @@ nodes:
     order_by:
       - network_id__value
     attributes:
+      - name: account_key
+        kind: Text
+        optional: false
+        order_weight: 850
+        description: The owning account's identity, denormalised so a write can be keyed
+          on it. Same value as the account relationship names.
       - name: network_id
         kind: Text
         optional: false
@@ -108,6 +124,9 @@ nodes:
     menu_placement: CloudVPC
     inherit_from:
       - CloudGenericResource
+    human_friendly_id:
+      - vpc_key__value
+      - network_id__value
     uniqueness_constraints:
       - - vpc
         - network_id__value
@@ -115,6 +134,11 @@ nodes:
     order_by:
       - network_id__value
     attributes:
+      - name: vpc_key
+        kind: Text
+        optional: false
+        order_weight: 850
+        description: The owning VPC's identity, denormalised so a write can be keyed on it.
       - name: network_id
         kind: Text
         optional: false
@@ -139,6 +163,9 @@ nodes:
     menu_placement: CloudVPC
     inherit_from:
       - CloudGenericResource
+    human_friendly_id:
+      - vpc_key__value
+      - service_id__value
     uniqueness_constraints:
       - - vpc
         - service_id__value
@@ -146,6 +173,11 @@ nodes:
     order_by:
       - service_id__value
     attributes:
+      - name: vpc_key
+        kind: Text
+        optional: false
+        order_weight: 850
+        description: The owning VPC's identity, denormalised so a write can be keyed on it.
       - name: service_id
         kind: Text
         optional: false

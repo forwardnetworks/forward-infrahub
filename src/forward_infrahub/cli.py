@@ -1,9 +1,12 @@
-"""``forward-infrahub``: the commands around a sync, not the sync itself.
+"""``forward-infrahub``: running a sync, and the things done around one.
 
-Running a sync is ``infrahub-sync``. These are the things an operator does
-before or beside one: publish the bundled queries so snapshot diffs work, check
-that what is published still matches what this package ships, see which
-snapshot a run would pick, and check the query contracts.
+infrahub-sync v3 runs a sync through a service, and its own command line is an
+HTTP client for one. ``models``, ``plan`` and ``apply`` here drive the same
+engine through its supported Python API, so a sync can be run from one machine
+against a ``config.yml``. The rest are the things done around a sync: publish
+the bundled queries so snapshot diffs work, check that what is published still
+matches what this package ships, see which snapshot a run would pick, and check
+the query contracts.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from forward_infrahub.contracts import check_contracts
 from forward_infrahub.identity import check_identities
 from forward_infrahub.publish import MATCHED, audit, publish
 from forward_infrahub.queries import all_query_sources
+from forward_infrahub.runtime import prepare
 from forward_infrahub.settings import AdapterSettings, build_client
 from forward_infrahub.snapshot import resolve_snapshot
 
@@ -49,6 +53,111 @@ def _client_and_settings(args: argparse.Namespace) -> tuple[Any, AdapterSettings
     if args.query_directory:
         settings = settings.model_copy(update={"query_directory": args.query_directory})
     return build_client(settings), settings
+
+
+def cmd_models(args: argparse.Namespace) -> int:
+    """Show the models a run would build from the destination schema."""
+    run = prepare(Path(args.config), args.name, args.branch)
+    for kind in sorted(run.models):
+        model = run.models[kind]
+        print(f"{kind:26} identifiers={','.join(model._identifiers)}")
+    print(f"\n{len(run.models)} kind(s) built from the schema on branch {args.branch!r}")
+    return 0
+
+
+def _print_plan(plan: Any) -> None:
+    """What a reviewer needs: the counts, the checksum, and what will not happen."""
+    summary = plan.summary()
+    print(f"run:      {plan.manifest.run_id}")
+    print(f"checksum: {plan.manifest.plan_checksum}")
+    print(f"verified: {'yes' if plan.checksum_ok else 'NO'}")
+    for note in plan.verification_notes:
+        print(f"  note: {note}")
+    for action, count in sorted(summary.by_action.items()):
+        print(f"{action:>9}: {count}")
+    for kind, count in sorted(summary.by_kind.items()):
+        print(f"  {kind:26} {count}")
+    if summary.deletes_not_executed:
+        # v3 records deletes and declines them. Saying so is the difference
+        # between a disclosed skip and a silent one.
+        print(
+            f"\n{summary.deletes_not_executed} delete(s) are recorded and will not be "
+            "applied: infrahub-sync v3 never deletes."
+        )
+    elif not summary.delete_operations_computed:
+        print("\nDeletes were not computed for this plan, so none are reported.")
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    """Work out what the sync would write, and save it for review."""
+    from infrahub_sync.execution import execute_run
+
+    run = prepare(Path(args.config), args.name, args.branch)
+    plan = execute_run(
+        run.instance,
+        operation="plan",
+        branch=args.branch,
+        full_extract=True,
+        print_diff=not args.quiet,
+        _return_saved_plan=True,
+    )
+    _print_plan(plan)
+    run_id = plan.manifest.run_id
+    print(
+        f"\nReview it with `forward-infrahub review {run_id} --config ... --name ...`, then "
+        f"apply it with `--expected-checksum {plan.manifest.plan_checksum}`."
+    )
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Re-read a saved plan and prove it is the one that was planned."""
+    from infrahub_sync.execution import execute_run
+
+    run = prepare(Path(args.config), args.name, args.branch)
+    plan = execute_run(run.instance, operation="verify", run_id=args.run_id)
+    _print_plan(plan)
+    if args.detail:
+        for operation in plan.operations():
+            print(f"  {operation.action:>6} {operation.kind:24} {operation.identity}")
+    return 0 if plan.checksum_ok else 1
+
+
+def cmd_apply(args: argparse.Namespace) -> int:
+    """Write a reviewed plan to Infrahub."""
+    import filelock
+    from infrahub_sync.execution import execute_run
+    from infrahub_sync.plan.ownership import ProvenWriteOwnership, WriteDispatchTracker
+
+    run = prepare(Path(args.config), args.name, args.branch)
+    applied: list[Any] = []
+    lock = filelock.FileLock(Path(run.instance.directory) / ".forward-infrahub-apply.lock")
+    with lock.acquire(timeout=args.lock_timeout):
+
+        def prove() -> None:
+            # The boundary v3 asks for: proof that this process still holds the
+            # right to write, checked before every operation it dispatches.
+            if not lock.is_locked:
+                raise ForwardError("the apply lock was lost; nothing further was written")
+
+        result = execute_run(
+            run.instance,
+            operation="apply",
+            confirm_writes=True,
+            branch=args.branch,
+            run_id=args.run_id,
+            expected_checksum=args.expected_checksum,
+            ownership=ProvenWriteOwnership(prove=prove, tracker=WriteDispatchTracker()),
+            record_applied=applied.append,
+        )
+    print(f"status: {result.status}")
+    for action, count in sorted(result.summary.items()):
+        print(f"{action:>9}: {count}")
+    for record in applied:
+        skipped = len(record.skipped_delete_operations)
+        if skipped:
+            print(f"\n{skipped} delete(s) were planned and not applied; v3 never deletes.")
+    return 0
 
 
 def cmd_check_identities(args: argparse.Namespace) -> int:
@@ -173,6 +282,30 @@ def build_parser() -> argparse.ArgumentParser:
     identities.add_argument("--infrahub-address", help="default: INFRAHUB_ADDRESS, or the config")
     identities.add_argument("--infrahub-token", help="default: INFRAHUB_API_TOKEN")
     identities.add_argument("--branch", default="main")
+
+    def add_run_command(name: str, handler: Any, help_text: str) -> argparse.ArgumentParser:
+        sub = subparsers.add_parser(name, help=help_text)
+        sub.set_defaults(handler=handler)
+        sub.add_argument("--config", type=Path, required=True, help="the sync config.yml")
+        sub.add_argument("--name", required=True, help="the sync's name in that config")
+        sub.add_argument("--branch", default="main", help="the Infrahub branch")
+        return sub
+
+    add_run_command("models", cmd_models, "show the models built from the destination schema")
+    plan_parser = add_run_command("plan", cmd_plan, "work out what a sync would write")
+    plan_parser.add_argument("--quiet", action="store_true", help="do not print the diff")
+    review_parser = add_run_command("review", cmd_review, "re-read a saved plan")
+    review_parser.add_argument("run_id", help="the run a plan was saved under")
+    review_parser.add_argument("--detail", action="store_true", help="list every operation")
+    apply_parser = add_run_command("apply", cmd_apply, "write a reviewed plan to Infrahub")
+    apply_parser.add_argument("run_id", help="the run whose plan to apply")
+    apply_parser.add_argument(
+        "--expected-checksum",
+        required=True,
+        help="the checksum `review` reported; the apply is refused if the plan has moved",
+    )
+    apply_parser.add_argument("--lock-timeout", type=float, default=60.0)
+
     add("resolve-snapshot", cmd_resolve_snapshot, "show which snapshot a sync would use")
     add("audit-queries", cmd_audit_queries, "compare the library against the bundled queries")
     add("publish-queries", cmd_publish_queries, "publish the bundled queries to the library")

@@ -260,8 +260,12 @@ schema_mapping:
     # So the name is qualified with the id and site that identify it, and the
     # name Forward reports is kept in description. Shorten this if your site
     # names are long, but keep it unique per site.
+    #
+    # The identity is that qualified name, because a write is keyed on the
+    # human-friendly id: identifying a VLAN by anything the id does not carry
+    # leaves the write unkeyed, and a second run would make a second VLAN.
     mapping: nqe:vlans
-    identifiers: [vlan_id, vlan_group]
+    identifiers: [name]
     filters:
       - field: site
         operation: is_not_empty
@@ -299,6 +303,10 @@ schema_mapping:
   - name: IpamIPAddress
     mapping: nqe:ip_addresses
     identifiers: [address, ip_namespace]
+    filters:
+      - field: interface_kind
+        operation: "=="
+        value: physical
     fields:
       - name: address
         mapping: address
@@ -314,11 +322,43 @@ schema_mapping:
         reference: IpamVRF
       - name: interface
         mapping: interface_key
-        reference: InterfaceLayer3
+        reference: InterfacePhysical
       # Set from this side so devices do not have to wait for their addresses.
+      # DcimGenericDevice is a generic and is never loaded; DcimDevice is the
+      # only device kind this sync writes.
       - name: primary_of
         mapping: primary_of
-        reference: DcimGenericDevice
+        reference: DcimDevice
+
+  # The same kind again, for addresses on virtual interfaces. A reference names
+  # one kind; an address can sit on either, and a run probes the kinds every
+  # entry of this name declares.
+  - name: IpamIPAddress
+    mapping: nqe:ip_addresses
+    identifiers: [address, ip_namespace]
+    filters:
+      - field: interface_kind
+        operation: "=="
+        value: virtual
+    fields:
+      - name: address
+        mapping: address
+      - name: status
+        static: active
+      - name: description
+        mapping: description
+      - name: ip_namespace
+        mapping: namespace
+        reference: IpamNamespace
+      - name: vrf
+        mapping: vrf_ref
+        reference: IpamVRF
+      - name: interface
+        mapping: interface_key
+        reference: InterfaceVirtual
+      - name: primary_of
+        mapping: primary_of
+        reference: DcimDevice
 
   - name: DcimCable
     mapping: nqe:cables
@@ -328,9 +368,11 @@ schema_mapping:
         mapping: label
       - name: status
         static: connected
+      # DcimEndpoint is a generic and is never loaded; a cable in Forward is
+      # always between two ethernet ports, which are physical interfaces.
       - name: connected_endpoints
         mapping: connected_endpoints
-        reference: DcimEndpoint
+        reference: InterfacePhysical
 
   - name: CloudAccount
     # cloud_type arrives as a bare token (aws, azure, gcp): the query normalises it
@@ -347,7 +389,10 @@ schema_mapping:
 
   - name: CloudVPC
     mapping: nqe:cloud_networks
-    identifiers: [account, network_id]
+    # The denormalised keys, not the relationships: a write is keyed on the
+    # human-friendly id, and one that crosses a relationship cannot be
+    # rendered. These are the same values the relationships resolve through.
+    identifiers: [account_key, network_id]
     filters:
       - field: kind
         operation: "=="
@@ -359,13 +404,15 @@ schema_mapping:
         mapping: name
       - name: cidrs
         mapping: cidrs
+      - name: account_key
+        mapping: account_key
       - name: account
         mapping: account_key
         reference: CloudAccount
 
   - name: CloudSubnet
     mapping: nqe:cloud_networks
-    identifiers: [vpc, network_id]
+    identifiers: [vpc_key, network_id]
     filters:
       - field: kind
         operation: "=="
@@ -377,13 +424,15 @@ schema_mapping:
         mapping: name
       - name: cidrs
         mapping: cidrs
+      - name: vpc_key
+        mapping: vpc_key
       - name: vpc
         mapping: vpc_key
         reference: CloudVPC
 
   - name: CloudService
     mapping: nqe:cloud_services
-    identifiers: [vpc, service_id]
+    identifiers: [vpc_key, service_id]
     fields:
       - name: service_id
         mapping: service_id
@@ -391,6 +440,8 @@ schema_mapping:
         mapping: name
       - name: service_kind
         mapping: service_kind
+      - name: vpc_key
+        mapping: vpc_key
       - name: vpc
         mapping: vpc_key
         reference: CloudVPC

@@ -27,14 +27,14 @@ MODEL_SHAPES: dict[str, dict[str, Any]] = {
     "IpamNamespace": {"ids": ("name",), "lists": ()},
     "IpamVRF": {"ids": ("name",), "lists": ()},
     "IpamVLANGroup": {"ids": ("name",), "lists": ()},
-    "IpamVLAN": {"ids": ("vlan_id", "vlan_group"), "lists": ()},
+    "IpamVLAN": {"ids": ("name",), "lists": ()},
     "IpamPrefix": {"ids": ("prefix", "ip_namespace"), "lists": ()},
     "IpamIPAddress": {"ids": ("address", "ip_namespace"), "lists": ("primary_of",)},
     "DcimCable": {"ids": ("label",), "lists": ("connected_endpoints",)},
     "CloudAccount": {"ids": ("cloud_type", "account_id"), "lists": ()},
-    "CloudVPC": {"ids": ("account", "network_id"), "lists": ("cidrs",)},
-    "CloudSubnet": {"ids": ("vpc", "network_id"), "lists": ("cidrs",)},
-    "CloudService": {"ids": ("vpc", "service_id"), "lists": ()},
+    "CloudVPC": {"ids": ("account_key", "network_id"), "lists": ("cidrs",)},
+    "CloudSubnet": {"ids": ("vpc_key", "network_id"), "lists": ("cidrs",)},
+    "CloudService": {"ids": ("vpc_key", "service_id"), "lists": ()},
 }
 
 
@@ -43,25 +43,34 @@ def build_models(config: SyncConfig) -> dict[str, type]:
     from forward_infrahub.adapter import ForwardnetworksModel
 
     models: dict[str, type] = {}
+    # A kind may be mapped by more than one entry; one model class serves them
+    # all, and its attributes are the union of what the entries set.
+    fields_by_kind: dict[str, list[Any]] = {}
     for element in config.schema_mapping:
-        shape = MODEL_SHAPES[element.name]
+        for field in element.fields:
+            known = fields_by_kind.setdefault(element.name, [])
+            if all(field.name != existing.name for existing in known):
+                known.append(field)
+
+    for name, element_fields in fields_by_kind.items():
+        shape = MODEL_SHAPES[name]
         ids = tuple(shape["ids"])
-        attributes = tuple(f.name for f in element.fields if f.name not in ids)
+        attributes = tuple(f.name for f in element_fields if f.name not in ids)
         annotations: dict[str, Any] = {}
         namespace: dict[str, Any] = {
-            "_modelname": element.name,
+            "_modelname": name,
             "_identifiers": ids,
             "_attributes": attributes,
             "__annotations__": annotations,
         }
-        for field in element.fields:
+        for field in element_fields:
             if field.name in shape["lists"]:
                 annotations[field.name] = list[Any] | None
                 namespace[field.name] = None
             else:
                 annotations[field.name] = Any
                 namespace[field.name] = None
-        models[element.name] = type(element.name, (ForwardnetworksModel,), namespace)
+        models[name] = type(name, (ForwardnetworksModel,), namespace)
     return models
 
 

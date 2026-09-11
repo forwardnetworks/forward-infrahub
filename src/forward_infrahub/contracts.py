@@ -62,6 +62,7 @@ QUERY_CONTRACT_FIELDS: dict[str, tuple[str, ...]] = {
     "forward_ip_addresses.nqe": (
         "device",
         "interface",
+        "interface_kind",
         "interface_key",
         "namespace",
         "vrf_ref",

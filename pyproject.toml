@@ -87,6 +87,11 @@ ignore = ["PLR0913", "PLR2004", "PLR0912", "PLR0915", "PLR0911", "RUF012"]
 # an infrahub-sync that has no capability table, and report that rather than
 # fail at import.
 "src/forward_infrahub/capabilities.py" = ["PLC0415"]
+# infrahub-sync v3 is a heavy import that a `check-contracts` run has no use
+# for, and capabilities must be registered before its validation modules are
+# read. Both want these imports where they are.
+"src/forward_infrahub/runtime.py" = ["PLC0415"]
+"src/forward_infrahub/cli.py" = ["PLC0415"]
 
 [tool.mypy]
 # No python_version pin: mypy runs on the interpreter in .venv. Pinning it to

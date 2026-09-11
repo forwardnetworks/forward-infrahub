@@ -134,7 +134,9 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
 
         self._runner: QueryRunner | None = None
         self._queries: dict[str, ResolvedQuery] = {}
-        self._tables: dict[str, list[Row]] = {}
+        #: Prepared rows per mapping entry, keyed by the entry's identity
+        #: because one kind may be mapped by more than one entry.
+        self._tables: dict[int, list[Row]] = {}
         self._augment = AugmentContext(settings=self.settings)
         self._prepared = False
 
@@ -149,6 +151,18 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
     def _elements(self) -> list[SchemaMappingModel]:
         wanted = set(self.top_level)
         return [e for e in self.config.schema_mapping if e.name in wanted and e.mapping]
+
+    def _elements_for(self, model_name: str) -> list[SchemaMappingModel]:
+        """Every mapping entry that loads this kind.
+
+        A kind may be mapped more than once: a reference names one peer kind,
+        so rows whose peer differs in kind are split across entries that filter
+        them apart. Each entry contributes its own rows to the same kind.
+        """
+        found = [e for e in self.config.schema_mapping if e.name == model_name and e.mapping]
+        if not found:
+            raise ForwardLoadError(f"no schema_mapping entry with a mapping for {model_name!r}")
+        return found
 
     def _prepare(self) -> None:
         """Resolve the snapshot, run every query once, then scope and augment the rows."""
@@ -165,7 +179,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self._check_snapshot_gate()
 
         elements = self._elements()
-        refs = {e.name: parse_mapping(e.mapping) for e in elements}
+        refs = {id(e): parse_mapping(e.mapping) for e in elements}
         keys = {key for ref in refs.values() for key in ref.execution_keys}
         self._queries = resolve_queries(self.client, sorted(keys), self.settings)
         self._runner = QueryRunner(self.client, self.settings, self.snapshot.id)
@@ -180,15 +194,15 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             schema_mapping=[e.model_dump(mode="json") for e in elements],
         )
 
-        self._fetch_rows(sorted(keys), {name: ref for name, ref in refs.items()})
+        self._fetch_rows(sorted(keys), refs)
         self._load_scopes(keys)
-        for name, ref in refs.items():
-            self._tables[name] = self._prepare_rows(ref)
+        for element in elements:
+            self._tables[id(element)] = self._prepare_rows(refs[id(element)])
         self._prepared = True
 
     # ------------------------------------------------------------- fetching
 
-    def _fetch_rows(self, keys: list[str], refs: dict[str, TableRef]) -> None:
+    def _fetch_rows(self, keys: list[str], refs: dict[int, TableRef]) -> None:
         """Fill the runner with every table, from Forward or from the cache plus a diff.
 
         A full fetch is the exception: the first run, a moved scope, a
@@ -293,11 +307,11 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 rows = self._runner.rows_for(key)
                 self._runner.device_names = sorted(str(r.get("name") or "") for r in rows)
 
-    def _primary_keys_by_execution(self, refs: dict[str, TableRef]) -> dict[str, tuple[str, ...]]:
+    def _primary_keys_by_execution(self, refs: dict[int, TableRef]) -> dict[str, tuple[str, ...]]:
         """The columns a diff folds on, per execution key."""
         keys: dict[str, tuple[str, ...]] = {}
         for element in self._elements():
-            ref = refs[element.name]
+            ref = refs[id(element)]
             for key in ref.execution_keys:
                 if ref.spec is not None:
                     filename = key.split(":", 1)[1]
@@ -405,20 +419,14 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
 
     # ------------------------------------------------------------ model_loader
 
-    def _element_for(self, model_name: str) -> SchemaMappingModel:
-        for element in self.config.schema_mapping:
-            if element.name == model_name and element.mapping:
-                return element
-        raise ForwardLoadError(f"no schema_mapping entry with a mapping for {model_name!r}")
-
     def model_loader(self, model_name: str, model: ModelClass) -> None:
-        element = self._element_for(model_name)
-        rows = self._tables.get(model_name)
-        if rows is None:
-            self._prepare()
-            rows = self._tables.get(model_name, self._prepare_rows(parse_mapping(element.mapping)))
-        for payload in self._records_to_diffsync(element, model, rows):
-            self.update_or_add_model_instance(model(**payload))
+        self._prepare()
+        for element in self._elements_for(model_name):
+            rows = self._tables.get(id(element))
+            if rows is None:
+                rows = self._prepare_rows(parse_mapping(element.mapping))
+            for payload in self._records_to_diffsync(element, model, rows):
+                self.update_or_add_model_instance(model(**payload))
 
     def _records_to_diffsync(
         self,
