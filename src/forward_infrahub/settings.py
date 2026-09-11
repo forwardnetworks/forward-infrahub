@@ -99,16 +99,20 @@ class AdapterSettings(BaseModel):
 
     query_directory: str = "/forward_infrahub"
     query_mode: QueryMode = "auto"
-    publish_queries: bool = False
 
+    # Snapshot-to-snapshot diffs are the normal fetch; a full fetch happens on
+    # the first run, when the baseline is invalid, and every
+    # ``full_refetch_every`` runs so drift in the cached rows cannot persist.
+    # 0 means never on cadence.
     incremental: bool = True
+    full_refetch_every: int = Field(default=20, ge=0)
+    # Forward's results endpoint stops advancing past 250,000 rows. A full
+    # fetch that hits that is re-run in shards of this many devices.
+    shard_devices: int = Field(default=100, ge=1)
     require_complete_snapshot: bool = False
-    allow_incomplete_snapshot_deletes: bool = False
-    allow_scoped_deletes: bool = False
 
     normalize_location_names: bool = True
     unassigned_location_name: str = ""
-    primary_address_heuristic: bool = True
 
     replay_fixture: str = ""
     # Where the incremental baseline is kept. Defaults to the directory

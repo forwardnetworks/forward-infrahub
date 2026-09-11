@@ -61,8 +61,6 @@ def build_models(config: SyncConfig) -> dict[str, type]:
             else:
                 annotations[field.name] = Any
                 namespace[field.name] = None
-        annotations["local_id"] = str | None
-        namespace["local_id"] = None
         models[element.name] = type(element.name, (ForwardnetworksModel,), namespace)
     return models
 

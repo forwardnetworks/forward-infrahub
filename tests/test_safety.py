@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -28,10 +30,7 @@ def with_settings(config: SyncConfig, **overrides: Any) -> SyncConfig:
     return config
 
 
-def make_incomplete(fixture_path: Any, tmp_path: Any) -> str:
-    import json
-    from pathlib import Path
-
+def make_incomplete(fixture_path: Any, tmp_path: Path) -> str:
     payload = json.loads(Path(fixture_path).read_text())
     payload["metrics"] = {"numCollectionFailureDevices": 2}
     target = tmp_path / "incomplete.json"
@@ -39,48 +38,38 @@ def make_incomplete(fixture_path: Any, tmp_path: Any) -> str:
     return str(target)
 
 
-def test_an_incomplete_snapshot_still_loads_when_nothing_is_deleted(
-    replay_config: SyncConfig, tmp_path: Any
+def test_an_incomplete_snapshot_loads_with_a_warning(
+    replay_config: SyncConfig, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Missing rows are uncollected, not gone: safe to add, unsafe to remove."""
+    """infrahub-sync never deletes, so an incomplete snapshot can only omit rows."""
     fixture = make_incomplete((replay_config.source.settings or {})["replay_fixture"], tmp_path)
     adapter = build(with_settings(replay_config, replay_fixture=fixture))
-    adapter.load()
+    with caplog.at_level("WARNING"):
+        adapter.load()
     assert adapter.snapshot is not None
     assert not adapter.snapshot.complete
     assert len(adapter.get_all("DcimDevice")) == 2
+    assert "collection" in caplog.text.lower()
 
 
-def test_an_incomplete_snapshot_blocks_a_run_that_deletes(
-    replay_config: SyncConfig, tmp_path: Any
-) -> None:
-    fixture = make_incomplete((replay_config.source.settings or {})["replay_fixture"], tmp_path)
-    config = with_settings(replay_config, replay_fixture=fixture)
-    config.diffsync_flags = []
-    with pytest.raises(ForwardSafetyError, match=r"were never|not gone upstream"):
-        build(config).load()
-
-
-def test_deletes_are_permitted_when_the_operator_accepts_the_risk(
-    replay_config: SyncConfig, tmp_path: Any
-) -> None:
-    fixture = make_incomplete((replay_config.source.settings or {})["replay_fixture"], tmp_path)
-    config = with_settings(
-        replay_config, replay_fixture=fixture, allow_incomplete_snapshot_deletes=True
-    )
-    config.diffsync_flags = []
-    build(config).load()
-
-
-def test_require_complete_snapshot_refuses_regardless_of_deletes(
-    replay_config: SyncConfig, tmp_path: Any
-) -> None:
+def test_require_complete_snapshot_refuses(replay_config: SyncConfig, tmp_path: Path) -> None:
     fixture = make_incomplete((replay_config.source.settings or {})["replay_fixture"], tmp_path)
     config = with_settings(replay_config, replay_fixture=fixture, require_complete_snapshot=True)
     with pytest.raises(ForwardSafetyError, match="require_complete_snapshot"):
         build(config).load()
 
 
-def test_a_complete_snapshot_permits_deletes(replay_config: SyncConfig) -> None:
-    replay_config.diffsync_flags = []
-    build(replay_config).load()
+@pytest.mark.parametrize(
+    "removed",
+    ["allow_scoped_deletes", "allow_incomplete_snapshot_deletes", "publish_queries"],
+)
+def test_the_delete_gates_are_gone(replay_config: SyncConfig, removed: str) -> None:
+    """A setting that promised a protection nothing enforced is refused, not ignored.
+
+    infrahub-sync v3 never applies a delete, so the gates around deleting were
+    removed with the promise. Accepting the keys silently would let an old
+    config believe it still had them.
+    """
+    config = with_settings(replay_config, **{removed: True})
+    with pytest.raises(ValueError, match=removed):
+        build(config)

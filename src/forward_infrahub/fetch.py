@@ -4,24 +4,37 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from forward_sdk import ForwardError, ForwardNotFoundError
-from forward_sdk.nqe import PageGuards, QueryRef
+from forward_sdk import ForwardError, ForwardNotFoundError, ForwardPaginationError
+from forward_sdk.nqe import PageGuards, QueryRef, where
 from forward_sdk.nqe.files import load_query
 
 from forward_infrahub.exceptions import ForwardLoadError, ForwardSafetyError
-from forward_infrahub.queries import library_path, read_query_execution_source
+from forward_infrahub.queries import (
+    library_path,
+    query_primary_key,
+    read_query_execution_source,
+)
 from forward_infrahub.settings import AdapterSettings
 from forward_infrahub.tables import TableRef
 
 logger = logging.getLogger(__name__)
 
 Row = dict[str, Any]
+
+#: Forward's results endpoint returns the same page for every offset at or
+#: past this many rows, so one execution can never page further. Verified on
+#: 26.8.4; the SDK's repeat guard is what surfaces it, after the fact.
+PAGING_CAP = 250_000
+
+#: The exact comprehension line every shardable bundled query opens with. A
+#: shard appends a ``where`` on the device name right after it.
+DEVICE_LOOP = "foreach device in network.devices"
 
 
 @dataclass(frozen=True)
@@ -36,6 +49,12 @@ class ResolvedQuery:
     @property
     def commit_id(self) -> str:
         return self.ref.effective_commit_id or ""
+
+    @property
+    def filename(self) -> str | None:
+        """The bundled file behind a ``file:`` key, which is what can be sharded."""
+        scheme, _, value = self.key.partition(":")
+        return value if scheme == "file" else None
 
 
 def _ref_for(key: str, settings: AdapterSettings) -> tuple[QueryRef, str]:
@@ -91,6 +110,39 @@ def resolve_queries(
     return resolved
 
 
+def shard_source(source: str, device_names: Sequence[str]) -> str:
+    """The execution source narrowed to ``device_names`` at every device loop.
+
+    Raises:
+        ForwardLoadError: the source has no device loop to narrow.
+    """
+    clause = where.one_of("device.name", list(device_names))
+    if DEVICE_LOOP not in source or clause is None:
+        raise ForwardLoadError("query has no device comprehension to shard on")
+    return source.replace(DEVICE_LOOP, f"{DEVICE_LOOP}\nwhere {clause}")
+
+
+def merge_shards(shards: Iterable[Sequence[Row]], primary_key: Sequence[str]) -> list[Row]:
+    """Concatenate shard results, folding rows that share a primary key.
+
+    A table aggregated over devices (a manufacturer, a VLAN) appears once per
+    shard that saw it; those rows are one row with their list columns united.
+    """
+    merged: dict[tuple[str, ...], Row] = {}
+    for rows in shards:
+        for row in rows:
+            key = tuple(str(row.get(c) if row.get(c) is not None else "") for c in primary_key)
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = dict(row)
+                continue
+            for column, value in row.items():
+                if isinstance(value, list) and isinstance(existing.get(column), list):
+                    seen = set(map(str, existing[column]))
+                    existing[column] = existing[column] + [v for v in value if str(v) not in seen]
+    return list(merged.values())
+
+
 class QueryRunner:
     """Runs queries with a small pool and hands back their rows.
 
@@ -105,6 +157,11 @@ class QueryRunner:
         self._snapshot_id = snapshot_id
         self._lock = threading.Lock()
         self._rows: dict[str, list[Row]] = {}
+        #: Every device name in the snapshot, the universe a sharded fetch
+        #: partitions. Set by the adapter once the devices table is in.
+        self.device_names: list[str] = []
+        #: Execution keys that were fetched in shards, with the shard count.
+        self.sharded: dict[str, int] = {}
 
     @property
     def guards(self) -> PageGuards:
@@ -118,17 +175,36 @@ class QueryRunner:
         with self._lock:
             return self._rows[key]
 
+    def has(self, key: str) -> bool:
+        with self._lock:
+            return key in self._rows
+
+    def seed(self, key: str, rows: Sequence[Row]) -> None:
+        """Hand the runner rows it did not fetch: from the cache, or a diff."""
+        with self._lock:
+            self._rows[key] = [dict(row) for row in rows]
+
     def cached(self) -> Mapping[str, list[Row]]:
         with self._lock:
             return dict(self._rows)
 
+    def diff(self, query: ResolvedQuery, before: str, after: str) -> list[Any]:
+        """The diff entries of one published query between two snapshots."""
+        return list(
+            self._client.nqe.diff(
+                query.ref,
+                before=before,
+                after=after,
+                page_size=self._settings.page_size,
+                guards=self.guards,
+            )
+        )
+
     def run_one(self, query: ResolvedQuery, network_id: str) -> list[Row]:
         try:
-            execution = self._client.nqe.execute(
-                query.ref, network_id=network_id, snapshot_id=self._snapshot_id
-            )
-            execution.wait(timeout=self._settings.timeout)
-            rows = list(execution.rows(page_size=self._settings.page_size, guards=self.guards))
+            rows = self._fetch(query.ref, network_id, label=query.label)
+        except ForwardPaginationError:
+            rows = self._run_sharded(query, network_id)
         except ForwardError as exc:
             raise ForwardLoadError(f"query {query.label!r} failed: {exc}") from exc
         with self._lock:
@@ -136,8 +212,71 @@ class QueryRunner:
         logger.info("fetched %d row(s) from %s", len(rows), query.label)
         return rows
 
+    def _fetch(self, ref: QueryRef, network_id: str, *, label: str) -> list[Row]:
+        execution = self._client.nqe.execute(
+            ref, network_id=network_id, snapshot_id=self._snapshot_id
+        )
+        execution.wait(timeout=self._settings.timeout)
+        produced = _rows_produced(execution)
+        if produced is not None and produced >= PAGING_CAP:
+            # Known before a single page is read: do not transfer a quarter of
+            # a million rows to be told they cannot be paged.
+            raise ForwardPaginationError(
+                f"{label} produced {produced} rows; Forward stops paging at {PAGING_CAP}"
+            )
+        return list(execution.rows(page_size=self._settings.page_size, guards=self.guards))
+
+    def _run_sharded(self, query: ResolvedQuery, network_id: str) -> list[Row]:
+        """Re-run a bundled query in device shards small enough to page."""
+        filename = query.filename
+        if filename is None:
+            raise ForwardLoadError(
+                f"query {query.label!r} exceeds Forward's paging limit of {PAGING_CAP} rows "
+                "and only bundled queries can be sharded; narrow it in the library"
+            )
+        if not self.device_names:
+            raise ForwardLoadError(
+                f"query {query.label!r} exceeds Forward's paging limit and no device list "
+                "is available to shard it"
+            )
+        source = read_query_execution_source(filename)
+        primary_key = query_primary_key(filename)
+        size = self._settings.shard_devices
+        shards = [self.device_names[i : i + size] for i in range(0, len(self.device_names), size)]
+        logger.warning(
+            "%s exceeds Forward's paging limit; fetching it in %d shard(s) of up to %d devices",
+            query.label,
+            len(shards),
+            size,
+        )
+        results = [self._fetch_shard(source, names, network_id, query.label) for names in shards]
+        self.sharded[query.key] = len(results)
+        return merge_shards(results, primary_key)
+
+    def _fetch_shard(
+        self, source: str, names: Sequence[str], network_id: str, label: str
+    ) -> list[Row]:
+        try:
+            rows = self._fetch(
+                QueryRef.inline(shard_source(source, names)), network_id, label=label
+            )
+        except ForwardPaginationError:
+            if len(names) == 1:
+                raise ForwardLoadError(
+                    f"query {label!r} returns more than {PAGING_CAP} rows for one device, "
+                    f"{names[0]}, which cannot be paged"
+                ) from None
+            half = len(names) // 2
+            return self._fetch_shard(source, names[:half], network_id, label) + self._fetch_shard(
+                source, names[half:], network_id, label
+            )
+        except ForwardError as exc:
+            raise ForwardLoadError(f"query {label!r} failed: {exc}") from exc
+        logger.info("fetched %d row(s) from %s for %d device(s)", len(rows), label, len(names))
+        return rows
+
     def run_all(self, queries: Iterable[ResolvedQuery], network_id: str) -> None:
-        pending = [q for q in queries if q.key not in self.cached()]
+        pending = [q for q in queries if not self.has(q.key)]
         if not pending:
             return
         workers = min(self._settings.max_concurrent_queries, len(pending))
@@ -152,3 +291,12 @@ class QueryRunner:
         for key in ref.execution_keys:
             rows.extend(self.rows_for(key))
         return rows
+
+
+def _rows_produced(execution: Any) -> int | None:
+    produced = getattr(execution, "rows_produced", None)
+    value = produced() if callable(produced) else produced
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
