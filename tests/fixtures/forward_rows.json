@@ -68,7 +68,11 @@
       "platform": "ARISTA_EOS",
       "os_version": "1.2.3",
       "serial_number": "SERIAL-001",
-      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.3"
+      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.3",
+      "tags": [
+        "core",
+        "managed"
+      ]
     },
     {
       "name": "device-002",
@@ -79,7 +83,10 @@
       "platform": "ARISTA_EOS",
       "os_version": "1.2.4",
       "serial_number": "SERIAL-002",
-      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.4"
+      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.4",
+      "tags": [
+        "edge"
+      ]
     }
   ],
   "forward_interfaces": [
@@ -203,9 +210,6 @@
   "forward_vrfs": [
     {
       "name": "BLUE",
-      "rd": "65000:1",
-      "description": "",
-      "enforce_unique": false,
       "scope_devices": [
         "device-001"
       ]
@@ -353,7 +357,11 @@
           "platform": "ARISTA_EOS",
           "os_version": "1.2.2",
           "serial_number": "SERIAL-001",
-          "description": "old"
+          "description": "old",
+          "tags": [
+            "core",
+            "managed"
+          ]
         },
         "after": {
           "name": "device-001",
@@ -364,7 +372,11 @@
           "platform": "ARISTA_EOS",
           "os_version": "1.2.3",
           "serial_number": "SERIAL-001",
-          "description": "new"
+          "description": "new",
+          "tags": [
+            "core",
+            "managed"
+          ]
         }
       },
       {
@@ -378,7 +390,8 @@
           "platform": "ARISTA_EOS",
           "os_version": "1.0.0",
           "serial_number": "SERIAL-003",
-          "description": "gone"
+          "description": "gone",
+          "tags": []
         },
         "after": null
       }

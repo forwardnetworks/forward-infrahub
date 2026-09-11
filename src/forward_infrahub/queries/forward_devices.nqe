@@ -27,5 +27,6 @@ select {
   platform: platform,
   os_version: os_version,
   serial_number: if isPresent(chassis_serial) then chassis_serial else "",
+  tags: distinct(foreach tag in device.tagNames where tag != "" select tag),
   description: join(" ", [vendor, model, platform, os_version])
 }

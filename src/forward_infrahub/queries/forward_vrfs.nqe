@@ -1,6 +1,6 @@
 /**
  * @intent Forward VRFs
- * @description Non-default network instances as IpamVRF rows. The same rows also back the IP namespace table, where the built-in default namespace is added.
+ * @description Non-default network instances as IpamVRF rows. The same rows also back the IP namespace table, where the built-in default namespace is added. A network instance carries no route distinguisher or description in Forward's model, so neither is emitted.
  * @contract-version v3-infrahub
  */
 
@@ -17,8 +17,5 @@ foreach row in (
 group row as grouped_rows by row.name as name
 select {
   name: name,
-  rd: "",
-  description: "",
-  enforce_unique: false,
   scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
 }

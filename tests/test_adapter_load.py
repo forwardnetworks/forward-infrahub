@@ -205,3 +205,21 @@ def test_device_scope_accepts_enum_or_token(
     instance.top_level = list(replay_config.order)  # type: ignore[misc]
     instance.load()
     assert uids(instance, "DcimDevice") == expected
+
+
+def test_device_tags_become_nodes_and_relate_back(adapter: Any) -> None:
+    """Tags come from the device rows, so they cost no second query."""
+    assert uids(adapter, "BuiltinTag") == {"core", "managed", "edge"}
+    assert sorted(one(adapter, "DcimDevice", "device-001").tags) == ["core", "managed"]
+    assert one(adapter, "DcimDevice", "device-002").tags == ["edge"]
+
+
+def test_a_vrf_carries_only_what_forward_knows(adapter: Any) -> None:
+    """A network instance has no route distinguisher, so none is written.
+
+    The mapping used to send an empty string for one on every run, which is
+    not the same as leaving a field Forward cannot answer for unset.
+    """
+    vrf = one(adapter, "IpamVRF", "BLUE")
+    assert vrf.name == "BLUE"
+    assert not hasattr(vrf, "vrf_rd") or vrf.vrf_rd is None

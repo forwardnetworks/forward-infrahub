@@ -56,6 +56,7 @@ Augmentation = Callable[[list[Row], AugmentContext], list[Row]]
 #: query's own contract.
 AUGMENTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "interfaces": ("untagged_vlan", "tagged_vlans"),
+    "tags": ("tag",),
 }
 
 
@@ -65,6 +66,9 @@ class TableSpec:
     query_files: tuple[str, ...]
     scope: ScopeKind
     augment: Augmentation | None = None
+    #: What identifies a row, when an augmentation reshapes the table into
+    #: something the query's own ``@primaryKey`` no longer describes.
+    primary_key: tuple[str, ...] | None = None
 
     @property
     def augmented_columns(self) -> tuple[str, ...]:
@@ -162,6 +166,24 @@ def augment_interfaces(rows: list[Row], ctx: AugmentContext) -> list[Row]:
     return out
 
 
+def augment_tags(rows: list[Row], ctx: AugmentContext) -> list[Row]:
+    """One row per tag name, from the tag lists the device rows carry.
+
+    Scoping runs before this, on the device rows, so a tag only reaches
+    Infrahub if a device this sync owns reported it.
+    """
+    by_name: dict[str, Row] = {}
+    for row in rows:
+        device = str(row.get("name") or "")
+        for tag in row.get("tags") or []:
+            name = str(tag).strip()
+            if not name:
+                continue
+            entry = by_name.setdefault(name, {"tag": name, "scope_devices": []})
+            entry["scope_devices"].append(device)
+    return list(by_name.values())
+
+
 def augment_namespaces(rows: list[Row], ctx: AugmentContext) -> list[Row]:
     """One namespace per VRF name, plus the built-in ``default`` namespace."""
     seen: dict[str, Row] = {}
@@ -181,6 +203,7 @@ TABLES: dict[str, TableSpec] = {
         TableSpec("device_types", ("forward_device_types.nqe",), "scope_devices"),
         TableSpec("locations", ("forward_locations.nqe",), "scope_devices", augment_locations),
         TableSpec("devices", ("forward_devices.nqe",), "name", augment_devices),
+        TableSpec("tags", ("forward_devices.nqe",), "name", augment_tags, primary_key=("tag",)),
         TableSpec("interfaces", ("forward_interfaces.nqe",), "device", augment_interfaces),
         TableSpec("vrfs", ("forward_vrfs.nqe",), "scope_devices"),
         TableSpec("ip_namespaces", ("forward_vrfs.nqe",), "scope_devices", augment_namespaces),

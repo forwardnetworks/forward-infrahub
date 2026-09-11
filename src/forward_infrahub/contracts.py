@@ -38,6 +38,7 @@ QUERY_CONTRACT_FIELDS: dict[str, tuple[str, ...]] = {
         "platform",
         "os_version",
         "serial_number",
+        "tags",
         "description",
     ),
     "forward_interfaces.nqe": (
@@ -59,7 +60,7 @@ QUERY_CONTRACT_FIELDS: dict[str, tuple[str, ...]] = {
         "speed",
         "mac_address",
     ),
-    "forward_vrfs.nqe": ("name", "rd", "description", "enforce_unique", "scope_devices"),
+    "forward_vrfs.nqe": ("name", "scope_devices"),
     "forward_vlans.nqe": ("site", "vid", "name", "status", "scope_devices"),
     "forward_prefixes_ipv4.nqe": ("namespace", "vrf_ref", "prefix", "family", "status"),
     "forward_prefixes_ipv6.nqe": ("namespace", "vrf_ref", "prefix", "family", "status"),

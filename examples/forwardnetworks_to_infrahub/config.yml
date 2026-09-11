@@ -49,6 +49,7 @@ order:
   - DcimPlatform
   - DcimDeviceType
   - LocationSite
+  - BuiltinTag
   - DcimDevice
   # VLANs and LAGs before the interfaces that reference them: a reference to a
   # peer that has not been loaded drops the row that names it.
@@ -134,6 +135,15 @@ schema_mapping:
       - name: physical_address
         mapping: physical_address
 
+  # Tags Forward already carries. One node per name, from the same execution
+  # the device rows come from, so this costs no extra query.
+  - name: BuiltinTag
+    mapping: nqe:tags
+    identifiers: [name]
+    fields:
+      - name: name
+        mapping: tag
+
   - name: DcimDevice
     mapping: nqe:devices
     identifiers: [name]
@@ -161,6 +171,9 @@ schema_mapping:
       - name: location
         mapping: location
         reference: LocationSite
+      - name: tags
+        mapping: tags
+        reference: BuiltinTag
 
   # LAGs first: a member references its aggregate, and a reference to a peer
   # that has not been loaded drops the whole row.
@@ -295,10 +308,6 @@ schema_mapping:
     fields:
       - name: name
         mapping: name
-      - name: vrf_rd
-        mapping: rd
-      - name: description
-        mapping: description
 
   - name: IpamVLANGroup
     # One group per site, so a VLAN id is unique within the site that uses it.

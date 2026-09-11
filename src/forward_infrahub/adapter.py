@@ -308,7 +308,11 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 self._runner.device_names = sorted(str(r.get("name") or "") for r in rows)
 
     def _primary_keys_by_execution(self, refs: dict[int, TableRef]) -> dict[str, tuple[str, ...]]:
-        """The columns a diff folds on, per execution key."""
+        """The columns a diff folds on, per execution key.
+
+        The query's own key, not the table's: a diff arrives in the shape
+        Forward produced, before any augmentation reshapes it.
+        """
         keys: dict[str, tuple[str, ...]] = {}
         for element in self._elements():
             ref = refs[id(element)]
@@ -500,7 +504,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
     def _primary_key_columns(self, element: SchemaMappingModel) -> tuple[str, ...]:
         ref = parse_mapping(element.mapping)
         if ref.spec is not None:
-            return query_primary_key(ref.spec.query_files[0])
+            return ref.spec.primary_key or query_primary_key(ref.spec.query_files[0])
         if element.identifiers:
             field_map = {f.name: f.mapping for f in element.fields if f.mapping}
             return tuple(field_map[i] for i in element.identifiers if i in field_map)
