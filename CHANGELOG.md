@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- infrahub-sync bumped to `feature/v3-develop` @ `7d545c3` (3.0.0a3), from
+  `b16dcfe` (3.0.0a1). Upstream retired the private-render keyed-write gate
+  (`UnkeyedWriteRefusedError`) that refused any create whose destination kind's
+  human-friendly ID crosses a relationship -- `InterfacePhysical`,
+  `InterfaceVirtual`, `IpamPrefix` and `IpamIPAddress` all have one. Writes are
+  now keyed by a recorded destination id for updates and by proven HFID
+  coverage for creates (ADR 0013), which this package's mappings already
+  satisfy. Verified live against Infrahub 1.11.2: all four kinds create,
+  update and re-plan to no operations.
+
 ### Fixed
 
 - A response body the Forward SDK could not parse no longer escapes the
