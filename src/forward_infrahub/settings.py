@@ -106,8 +106,9 @@ class AdapterSettings(BaseModel):
     # 0 means never on cadence.
     incremental: bool = True
     full_refetch_every: int = Field(default=20, ge=0)
-    # Forward's results endpoint stops advancing past 250,000 rows. A full
-    # fetch that hits that is re-run in shards of this many devices.
+    # A full fetch that could not be paged to completion -- the row-count or
+    # page-count guard, or a server that genuinely never advances the offset --
+    # is re-run in shards of this many devices.
     shard_devices: int = Field(default=100, ge=1)
     require_complete_snapshot: bool = False
 

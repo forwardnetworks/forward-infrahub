@@ -247,7 +247,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         device_key = f"file:{DEVICE_SCOPE_FILE}"
         if device_key in keys:
             # Devices first, unsharded: they are the universe any query that
-            # exceeds Forward's paging limit is then partitioned over.
+            # could not be paged to completion is then partitioned over.
             rows = self._runner.run_one(self._queries[device_key], self.network_id)
             self._runner.device_names = sorted(str(r.get("name") or "") for r in rows)
         self._runner.run_all([self._queries[key] for key in keys], self.network_id)

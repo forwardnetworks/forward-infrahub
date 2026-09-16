@@ -16,7 +16,7 @@ from infrahub_sync import SyncConfig
 
 from forward_infrahub.adapter import ForwardnetworksAdapter
 from forward_infrahub.exceptions import ForwardLoadError
-from forward_infrahub.fetch import PAGING_CAP, merge_shards, shard_source
+from forward_infrahub.fetch import merge_shards, shard_source
 from forward_infrahub.replay import ReplayClient
 
 from .conftest import FIXTURE, build_models
@@ -167,7 +167,14 @@ def test_an_unpublished_query_cannot_diff(replay_config: SyncConfig, tmp_path: P
 def test_a_table_too_large_to_page_is_fetched_in_shards(
     replay_config: SyncConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Forward stops paging past a fixed offset, so the query is split by device."""
+    """A query that cannot be paged to completion is split by device instead.
+
+    Not a routine path: Forward's paging works to completion in the ordinary
+    case (forward-sdk>=0.1.6; earlier versions had a false-positive stall
+    detector that misdiagnosed this as a 250,000-row server-side cap, which it
+    never was). This is the fallback for when the row- or page-count guard
+    genuinely trips, or a server genuinely never advances the offset.
+    """
     # Four rows is the interfaces table exactly; every other fixture table is
     # smaller, so only that one is driven through the sharded path.
     config = with_settings(replay_config, shard_devices=1)
@@ -179,7 +186,7 @@ def test_a_table_too_large_to_page_is_fetched_in_shards(
     assert shard_calls, adapter.client.calls
     assert "forward_interfaces:shard:1" in shard_calls
     # Sharding is a fallback, not the normal path: it must say so.
-    assert "paging limit" in caplog.text
+    assert "could not be paged to completion" in caplog.text
 
     # The whole property: a sharded fetch loads what an unsharded one loads.
     whole = make(replay_config)
@@ -225,8 +232,3 @@ def test_merging_shards_unites_the_devices_each_one_saw() -> None:
     )
     by_name = {row["name"]: row["scope_devices"] for row in merged}
     assert by_name == {"Arista": ["device-001", "device-002"], "Cisco": ["device-003"]}
-
-
-def test_the_paging_cap_is_the_one_forward_enforces() -> None:
-    """Hard-coded, so a change here is a deliberate answer to a changed appliance."""
-    assert PAGING_CAP == 250_000

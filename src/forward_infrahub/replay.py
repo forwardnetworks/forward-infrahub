@@ -55,10 +55,6 @@ class _ReplayExecution:
     def wait(self, **_: Any) -> dict[str, Any]:
         return {"status": "COMPLETED", "outcome": "OK", "rowsProduced": len(self._rows)}
 
-    @property
-    def rows_produced(self) -> int:
-        return len(self._rows)
-
     def rows(self, **_: Any) -> Iterator[Row]:
         if self._paging_cap is not None and len(self._rows) >= self._paging_cap:
             raise ForwardPaginationError(

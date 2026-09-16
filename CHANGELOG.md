@@ -13,6 +13,20 @@
   coverage for creates (ADR 0013), which this package's mappings already
   satisfy. Verified live against Infrahub 1.11.2: all four kinds create,
   update and re-plan to no operations.
+- forward-sdk bumped to 0.1.15 from 0.1.5. Its paging guard used to compare
+  each page's first and last row to detect a stalled server; a query whose
+  rows look identical across pages (an aggregate, `select {n: 1}`) produced
+  the same signature whether the offset advanced or not, misdiagnosing a
+  query that was paging correctly as a server-side stall at exactly
+  `repeat_limit(25) * page_size(10000) = 250,000` rows. That is the query
+  shape this package's own probe used to "confirm" a 250,000-row Forward-side
+  paging cap, recorded as project memory and built into `fetch.py` as a
+  proactive early refusal. There never was such a cap; forward-sdk 0.1.6
+  fixed the false positive, verified there against a 545,464-row result
+  paging to completion in 55 pages. The proactive check is removed. The
+  sharding fallback stays -- for a genuine row/page-count guard trip, not a
+  hard-coded row count -- since a table can still legitimately outgrow the
+  guards on a large enough network.
 
 ### Fixed
 

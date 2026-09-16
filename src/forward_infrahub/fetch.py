@@ -27,11 +27,6 @@ logger = logging.getLogger(__name__)
 
 Row = dict[str, Any]
 
-#: Forward's results endpoint returns the same page for every offset at or
-#: past this many rows, so one execution can never page further. Verified on
-#: 26.8.4; the SDK's repeat guard is what surfaces it, after the fact.
-PAGING_CAP = 250_000
-
 #: The exact comprehension line every shardable bundled query opens with. A
 #: shard appends a ``where`` on the device name right after it.
 DEVICE_LOOP = "foreach device in network.devices"
@@ -217,34 +212,34 @@ class QueryRunner:
             ref, network_id=network_id, snapshot_id=self._snapshot_id
         )
         execution.wait(timeout=self._settings.timeout)
-        produced = _rows_produced(execution)
-        if produced is not None and produced >= PAGING_CAP:
-            # Known before a single page is read: do not transfer a quarter of
-            # a million rows to be told they cannot be paged.
-            raise ForwardPaginationError(
-                f"{label} produced {produced} rows; Forward stops paging at {PAGING_CAP}"
-            )
         return list(execution.rows(page_size=self._settings.page_size, guards=self.guards))
 
     def _run_sharded(self, query: ResolvedQuery, network_id: str) -> list[Row]:
-        """Re-run a bundled query in device shards small enough to page."""
+        """Re-run a bundled query in device shards small enough to page.
+
+        The fallback for a query whose full-network execution could not be
+        paged to completion: the row-count guard (``settings.max_rows``,
+        default a generous 2,000,000), the page-count guard, or a server that
+        genuinely never advances the offset. Splitting by device shrinks each
+        execution's result until it fits inside those same guards.
+        """
         filename = query.filename
         if filename is None:
             raise ForwardLoadError(
-                f"query {query.label!r} exceeds Forward's paging limit of {PAGING_CAP} rows "
-                "and only bundled queries can be sharded; narrow it in the library"
+                f"query {query.label!r} could not be paged to completion, and only "
+                "bundled queries can be sharded; narrow it in the library"
             )
         if not self.device_names:
             raise ForwardLoadError(
-                f"query {query.label!r} exceeds Forward's paging limit and no device list "
-                "is available to shard it"
+                f"query {query.label!r} could not be paged to completion and no device "
+                "list is available to shard it"
             )
         source = read_query_execution_source(filename)
         primary_key = query_primary_key(filename)
         size = self._settings.shard_devices
         shards = [self.device_names[i : i + size] for i in range(0, len(self.device_names), size)]
         logger.warning(
-            "%s exceeds Forward's paging limit; fetching it in %d shard(s) of up to %d devices",
+            "%s could not be paged to completion; fetching it in %d shard(s) of up to %d devices",
             query.label,
             len(shards),
             size,
@@ -263,8 +258,8 @@ class QueryRunner:
         except ForwardPaginationError:
             if len(names) == 1:
                 raise ForwardLoadError(
-                    f"query {label!r} returns more than {PAGING_CAP} rows for one device, "
-                    f"{names[0]}, which cannot be paged"
+                    f"query {label!r} could not be paged to completion even for one "
+                    f"device, {names[0]}"
                 ) from None
             half = len(names) // 2
             return self._fetch_shard(source, names[:half], network_id, label) + self._fetch_shard(
@@ -291,12 +286,3 @@ class QueryRunner:
         for key in ref.execution_keys:
             rows.extend(self.rows_for(key))
         return rows
-
-
-def _rows_produced(execution: Any) -> int | None:
-    produced = getattr(execution, "rows_produced", None)
-    value = produced() if callable(produced) else produced
-    try:
-        return int(value) if value is not None else None
-    except (TypeError, ValueError):
-        return None
