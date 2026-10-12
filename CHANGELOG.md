@@ -4,6 +4,15 @@
 
 ### Changed
 
+- infrahub-sync locked at `feature/v3-develop` @ `d2a93d2` (3.0.0a5), from
+  `7d545c3`. Upstream now sandboxes `schema_mapping` transforms, requires safe
+  source watermarks and a complete baseline for incremental runs, requires both
+  sides to be fully extracted before computing deletes, and requires the
+  `INFRAHUB_SYNC_CREDENTIAL_` prefix on environment credentials for registered
+  runs. The test suite passes against it (199); not yet run live.
+- `infrahub-sdk[ctl]` added to the dev group. 3.0.0a4 moved `[ctl]` out of
+  infrahub-sync's base dependencies into its `service` extra, so `infrahubctl`
+  (used by `infrahub-schema-load.sh`) is no longer installed implicitly.
 - infrahub-sync bumped to `feature/v3-develop` @ `7d545c3` (3.0.0a3), from
   `b16dcfe` (3.0.0a1). Upstream retired the private-render keyed-write gate
   (`UnkeyedWriteRefusedError`) that refused any create whose destination kind's

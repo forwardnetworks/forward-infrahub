@@ -5,6 +5,9 @@
 #   INFRAHUB_ADDRESS=http://localhost:8000 INFRAHUB_API_TOKEN=... ./infrahub-schema-load.sh
 #
 # Point SCHEMA_LIBRARY at a clone of https://github.com/opsmill/schema-library.
+# Needs infrahubctl on PATH: `pip install "infrahub-sdk[ctl]"`. This repo's
+# own dev group carries it; run through `uv run ./infrahub-schema-load.sh`
+# there instead of installing it separately.
 set -euo pipefail
 
 SCHEMA_LIBRARY="${SCHEMA_LIBRARY:-./schema-library}"

@@ -65,6 +65,13 @@ dev = [
   "mypy>=1.13",
   "types-PyYAML",
   "pre-commit>=4",
+  # infrahubctl, for `examples/.../infrahub-schema-load.sh` and manual schema
+  # work. infrahub-sync 3.0.0a4 narrowed its own base dependency from
+  # `infrahub-sdk[all]` to bare `infrahub-sdk`, moving `[ctl]` into its own
+  # `service` extra -- deliberately, on their side, to keep a base install
+  # free of it. We still want the command; asking for it here rather than
+  # depending on their choice keeps it ours to keep working.
+  "infrahub-sdk[ctl]>=1.17,<2",
 ]
 
 [tool.hatch.version]

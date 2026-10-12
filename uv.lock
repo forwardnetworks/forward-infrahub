@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -410,6 +410,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "infrahub-sdk", extra = ["ctl"] },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -430,6 +431,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "infrahub-sdk", extras = ["ctl"], specifier = ">=1.17,<2" },
     { name = "mypy", specifier = ">=1.13" },
     { name = "pre-commit", specifier = ">=4" },
     { name = "pytest", specifier = ">=8.3" },
@@ -468,6 +470,41 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/11/7f/671c1046fe72ba5b62be2de3979ea9e61cb3dba8f1edfb880b811f8bdf8b/graphql_core-3.2.12.tar.gz", hash = "sha256:4579094d5fc8a1a59555a9b18e51b320779d9bbc63e2302c519af0c4919d9543", size = 531478, upload-time = "2026-08-27T20:25:48.607Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/b6/304c572e79b9e82982dbd5091e26a89f5018e565868091d804c2142f6ba5/graphql_core-3.2.12-py3-none-any.whl", hash = "sha256:3d8f104532070485e13caa4092c1e71cda2ba6cffd96e98f285111ee10ed1e51", size = 216042, upload-time = "2026-08-27T20:25:47.234Z" },
+]
+
+[[package]]
+name = "griffe"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "griffecli" },
+    { name = "griffelib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/03/75ca4d08a7eff164292d42cf72c7c510423b3414e66205f0ba5b35ad3034/griffe-2.3.0.tar.gz", hash = "sha256:aa5634c0d7802583ecd29a7fe335c02d462ffdf5ce8f51426a3d326f374e6d93", size = 247493, upload-time = "2026-09-04T15:08:15.364Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/f9/8bfacdb992aed404a3a53694689759841635bce93b86ddb621c1d7f2558c/griffe-2.3.0-py3-none-any.whl", hash = "sha256:92a41ff72eb1eb316cdcb7248a608f1313f9fbc6e35d5cffa5cf7c813b7db70b", size = 5072, upload-time = "2026-09-04T15:08:14.074Z" },
+]
+
+[[package]]
+name = "griffecli"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama" },
+    { name = "griffelib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/15/f70539f7efb44f27d209b43e386b1a5397bd476879ff19a206b75454f58e/griffecli-2.3.0.tar.gz", hash = "sha256:916fdc851cf51d38e9b5ab82550305df45e5981d5dfe65d346544464abedb3ec", size = 59676, upload-time = "2026-09-04T15:08:16.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/8c/8ffa4272d6bf85a0abe8898ef74ef41d505317bb4103e14a11d45d799dce/griffecli-2.3.0-py3-none-any.whl", hash = "sha256:f94653edcb52ebcac21eaeb3b7121b065a636174eddf2bd558b5935e72a553e8", size = 11593, upload-time = "2026-09-04T15:08:11.739Z" },
+]
+
+[[package]]
+name = "griffelib"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/af/018c10bc9edd42b6ef6db2e96b09542050d5253f9b195e74bc910b2d13ab/griffelib-2.3.0.tar.gz", hash = "sha256:7b0952caf5bca6afa4bb5ee8c6a2d183fe3f21b62efc5f6c7243cb2b26d2d115", size = 234534, upload-time = "2026-09-04T15:08:17.472Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/63/e876e789525063c840ccfa8857febdabd6523bcef9ce7eb979b9305ea895/griffelib-2.3.0-py3-none-any.whl", hash = "sha256:1b8f9cd525681c26b1d6d574faa1371651e8459ca51d209684f50b8096ae06e0", size = 169423, upload-time = "2026-09-04T15:08:12.956Z" },
 ]
 
 [[package]]
@@ -546,15 +583,15 @@ wheels = [
 ]
 
 [package.optional-dependencies]
-all = [
+ctl = [
     { name = "ariadne-codegen" },
     { name = "click" },
     { name = "jinja2" },
+    { name = "mdxify" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pyarrow" },
-    { name = "pytest" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
@@ -562,14 +599,14 @@ all = [
 
 [[package]]
 name = "infrahub-sync"
-version = "3.0.0a3"
-source = { git = "https://github.com/opsmill/infrahub-sync?branch=feature%2Fv3-develop#7d545c3821317eba3106617c97c5b2d763bba207" }
+version = "3.0.0a5"
+source = { git = "https://github.com/opsmill/infrahub-sync?branch=feature%2Fv3-develop#d2a93d212e4e42bcfe195d70226f676dace2e6a9" }
 dependencies = [
     { name = "diffsync" },
     { name = "filelock" },
     { name = "fsspec" },
     { name = "httpx" },
-    { name = "infrahub-sdk", extra = ["all"] },
+    { name = "infrahub-sdk" },
     { name = "jinja2" },
     { name = "netutils" },
     { name = "packaging" },
@@ -757,6 +794,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "mdxify"
+version = "0.2.45"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "griffe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/a3/90af4b42d04898feb2904e014e800054f64c774128007cea4212768b10c9/mdxify-0.2.45.tar.gz", hash = "sha256:60a87a324c5b1387b937aafb50eed0214230c477f8463c24583a2a0d1a684158", size = 1267872, upload-time = "2026-06-22T19:36:00.927Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/df/372e977d8b21e69c25257f357bb56f973ff36c402142b99c9bacae6e9488/mdxify-0.2.45-py3-none-any.whl", hash = "sha256:7f0907cc03b2cddcb61b2be236a591c179f6f88ac4c0323e1445ee7e503417d1", size = 26236, upload-time = "2026-06-22T19:35:59.727Z" },
 ]
 
 [[package]]

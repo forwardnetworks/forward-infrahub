@@ -3,7 +3,9 @@
 ## Before the first run
 
 1. **Load the schema.** This sync targets the Infrahub schema library plus the
-   `Cloud*` extension in `schema.yml`:
+   `Cloud*` extension in `schema.yml`. The script needs `infrahubctl`
+   (`pip install "infrahub-sdk[ctl]"`, or `uv run` it from a checkout of this
+   repo, whose dev group already carries it):
 
    ```bash
    git clone https://github.com/opsmill/schema-library
