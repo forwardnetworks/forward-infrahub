@@ -112,6 +112,12 @@ class _ReplayNqe:
         self._client.calls.append(stem)
         return _ReplayExecution(rows, paging_cap=self._client.paging_cap)
 
+    def query(self, query: QueryRef | str, **_: Any) -> list[Row]:
+        """What ``ForwardClient.nqe.query`` returns: every row, or the paging error."""
+        execution = self.execute(query)
+        execution.wait()
+        return list(execution.rows())
+
     def diff(
         self, query: QueryRef | str, *, before: str, after: str, **_: Any
     ) -> list[NqeDiffEntry]:

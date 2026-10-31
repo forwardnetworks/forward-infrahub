@@ -208,11 +208,21 @@ class QueryRunner:
         return rows
 
     def _fetch(self, ref: QueryRef, network_id: str, *, label: str) -> list[Row]:
-        execution = self._client.nqe.execute(
-            ref, network_id=network_id, snapshot_id=self._snapshot_id
+        # The SDK runs, waits and pages; with ``outcome_retries`` it also
+        # resubmits a query Forward finished with a transient outcome
+        # (``SYSTEM_ERROR``). A timeout, a compile error and a paging stall are
+        # not retried here: a stall falls through to sharding in ``run_one``.
+        return list(
+            self._client.nqe.query(
+                ref,
+                network_id=network_id,
+                snapshot_id=self._snapshot_id,
+                page_size=self._settings.page_size,
+                guards=self.guards,
+                timeout=self._settings.timeout,
+                outcome_retries=self._settings.outcome_retries,
+            )
         )
-        execution.wait(timeout=self._settings.timeout)
-        return list(execution.rows(page_size=self._settings.page_size, guards=self.guards))
 
     def _run_sharded(self, query: ResolvedQuery, network_id: str) -> list[Row]:
         """Re-run a bundled query in device shards small enough to page.

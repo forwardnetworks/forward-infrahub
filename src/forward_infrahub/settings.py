@@ -87,6 +87,10 @@ class AdapterSettings(BaseModel):
     verify_ssl: bool | str = True
     timeout: float = Field(default=1200.0, gt=0)
     retries: int = Field(default=2, ge=0)
+    # Extra submissions of a query Forward ran and finished with a transient
+    # outcome (``SYSTEM_ERROR``). ``retries`` covers failed HTTP requests; this
+    # covers a query that ran and ended badly. 0 turns it off.
+    outcome_retries: int = Field(default=2, ge=0)
     max_concurrent_queries: int = Field(default=2, ge=1)
     page_size: int = Field(default=10_000, ge=1, le=10_000)
     max_rows: int = Field(default=0, ge=0)

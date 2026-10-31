@@ -62,3 +62,57 @@ def test_every_sdk_error_the_adapter_names_descends_from_forward_error() -> None
         and not issubclass(getattr(forward_sdk, name), ForwardError)
     )
     assert outside == [], f"SDK exceptions outside ForwardError: {outside}"
+
+
+def _runner(nqe: object, **settings: object) -> object:
+    from forward_infrahub.fetch import QueryRunner
+    from forward_infrahub.settings import AdapterSettings
+
+    class _Client:
+        pass
+
+    fake = _Client()
+    fake.nqe = nqe  # type: ignore[attr-defined]
+    return QueryRunner(fake, AdapterSettings(url="https://fwd.example", **settings), "snap-1")
+
+
+def test_fetch_passes_only_keywords_the_real_nqe_query_accepts(client: ForwardClient) -> None:
+    """A stub accepts any keyword; the real signature is the check."""
+    import inspect
+
+    from forward_sdk.nqe import QueryRef
+
+    real = inspect.signature(client.nqe.query)
+    seen: dict[str, object] = {}
+
+    class _Nqe:
+        def query(self, ref: object, **kwargs: object) -> list[dict[str, object]]:
+            seen.update(kwargs)
+            return [{"name": "r1"}]
+
+    runner = _runner(_Nqe(), outcome_retries=3, timeout=77.0, page_size=500)
+    rows = runner._fetch(QueryRef.inline("select 1"), "net-1", label="q")  # type: ignore[attr-defined]
+
+    real.bind(QueryRef.inline("select 1"), **seen)
+    assert rows == [{"name": "r1"}]
+    assert seen["outcome_retries"] == 3
+    assert seen["timeout"] == 77.0
+    assert seen["page_size"] == 500
+    assert seen["snapshot_id"] == "snap-1"
+    assert seen["network_id"] == "net-1"
+    assert seen["guards"] is not None
+
+
+def test_a_query_that_ends_in_an_execution_error_fails_the_load(client: ForwardClient) -> None:
+    from forward_sdk import ForwardExecutionError
+
+    from forward_infrahub.exceptions import ForwardLoadError
+    from forward_infrahub.fetch import ResolvedQuery  # noqa: F401
+
+    class _Nqe:
+        def query(self, ref: object, **kwargs: object) -> list[dict[str, object]]:
+            raise ForwardExecutionError("failed", outcome="SYSTEM_ERROR", attempts=3)
+
+    runner = _runner(_Nqe())
+    with pytest.raises(ForwardLoadError, match="failed"):
+        runner._fetch_shard("select 1", ["a"], "net-1", "q")  # type: ignore[attr-defined]

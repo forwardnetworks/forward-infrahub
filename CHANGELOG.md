@@ -4,19 +4,27 @@
 
 ### Changed
 
+- Queries now go through `client.nqe.query` instead of `execute`/`wait`/`rows`
+  by hand, with the new `outcome_retries` setting (default 2, 0 turns it off):
+  a query Forward ran and finished with a transient `SYSTEM_ERROR` is
+  resubmitted by the SDK. A timeout and a compile error are not retried. A
+  paging stall is not something the SDK retries either, so the device-shard
+  fallback stays. `timeout` now applies to each attempt, so a query that keeps
+  failing with `SYSTEM_ERROR` can take up to three times it (plus backoff)
+  before the load fails.
 - forward-sdk bumped to 0.1.29 from 0.1.15. `snapshots.latest_processed_id()`,
   which `snapshot.py` uses to resolve the default snapshot, now follows
   Forward's own rule -- the newest processed snapshot by creation, skipping
   drafts and forks -- where before it ordered by `processedAt`, so a reprocessed
   older snapshot could be picked over a newer one. NQE queries gain opt-in
-  outcome retries and `ForwardExecutionError` carries `detail` and `attempts`;
-  this package uses neither yet. The test suite passes (199); not yet run live.
+  outcome retries (used above) and `ForwardExecutionError` carries `detail`
+  and `attempts`. The test suite passes; not yet run live.
 - infrahub-sync locked at `feature/v3-develop` @ `d2a93d2` (3.0.0a5), from
   `7d545c3`. Upstream now sandboxes `schema_mapping` transforms, requires safe
   source watermarks and a complete baseline for incremental runs, requires both
   sides to be fully extracted before computing deletes, and requires the
   `INFRAHUB_SYNC_CREDENTIAL_` prefix on environment credentials for registered
-  runs. The test suite passes against it (199); not yet run live.
+  runs. The test suite passes against it; not yet run live.
 - `infrahub-sdk[ctl]` added to the dev group. 3.0.0a4 moved `[ctl]` out of
   infrahub-sync's base dependencies into its `service` extra, so `infrahubctl`
   (used by `infrahub-schema-load.sh`) is no longer installed implicitly.
