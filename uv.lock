@@ -422,7 +422,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "diffsync", specifier = ">=2.1,<3" },
-    { name = "forward-sdk", specifier = "==0.1.15" },
+    { name = "forward-sdk", specifier = "==0.1.29" },
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "infrahub-sync", git = "https://github.com/opsmill/infrahub-sync?branch=feature%2Fv3-develop" },
     { name = "pydantic", specifier = ">=2.6,<3" },
@@ -442,16 +442,16 @@ dev = [
 
 [[package]]
 name = "forward-sdk"
-version = "0.1.15"
+version = "0.1.29"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/9b/99ce88e01a86e0e861ddbcfbcef8c879dd30291507558b44245faef8235c/forward_sdk-0.1.15.tar.gz", hash = "sha256:12b37fbdbbb71a987bfa2081ac64f96aacf253991b9c2603749154a254887c93", size = 682411, upload-time = "2026-09-16T01:09:06.287Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/06/d04d69287a15a721bb7f42fdd3a88021d771f0779b78019008c0353aa88b/forward_sdk-0.1.29.tar.gz", hash = "sha256:fd4e97d533f3f2b3ff3860b7e33a6652c746cbff2fb43c53a9af38f8c25103fc", size = 1100560, upload-time = "2026-10-30T18:03:09.707Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/16/6fcba61b97b9cf792ebe953c4cf1302334c63f57bf40e433c5e9d7789deb/forward_sdk-0.1.15-py3-none-any.whl", hash = "sha256:bfd0c7214909a875245803ce359fad0455ea35a9fcda1febc225a476c8b5b0fd", size = 370172, upload-time = "2026-09-16T01:09:04.642Z" },
+    { url = "https://files.pythonhosted.org/packages/92/40/ebc29a0226b0eb8eb4499b6f6709bfbe13dfe6360d67fd092b60838f302b/forward_sdk-0.1.29-py3-none-any.whl", hash = "sha256:3ba2de990454d0c05240998df6219e2a4918ae9a0f3ae211afbb31838da97572", size = 564277, upload-time = "2026-10-30T18:03:07.906Z" },
 ]
 
 [[package]]

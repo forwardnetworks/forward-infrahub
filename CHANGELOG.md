@@ -4,6 +4,13 @@
 
 ### Changed
 
+- forward-sdk bumped to 0.1.29 from 0.1.15. `snapshots.latest_processed_id()`,
+  which `snapshot.py` uses to resolve the default snapshot, now follows
+  Forward's own rule -- the newest processed snapshot by creation, skipping
+  drafts and forks -- where before it ordered by `processedAt`, so a reprocessed
+  older snapshot could be picked over a newer one. NQE queries gain opt-in
+  outcome retries and `ForwardExecutionError` carries `detail` and `attempts`;
+  this package uses neither yet. The test suite passes (199); not yet run live.
 - infrahub-sync locked at `feature/v3-develop` @ `d2a93d2` (3.0.0a5), from
   `7d545c3`. Upstream now sandboxes `schema_mapping` transforms, requires safe
   source watermarks and a complete baseline for incremental runs, requires both
