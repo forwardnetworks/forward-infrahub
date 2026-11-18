@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/verify_diffs.py`: for each bundled query, folds Forward's NQE diff
+  between two snapshots into the rows of the first and checks the result equals a
+  full fetch of the second. Run on real snapshots of a changing network, all 15
+  tables reconstructed exactly in two pairs, one of them with most of the network
+  changed.
+
 ### Changed
 
 - Relicensed from MIT to the Functional Source License 1.1 with an Apache-2.0

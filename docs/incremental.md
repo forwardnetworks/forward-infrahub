@@ -25,6 +25,21 @@ following hold:
 Anything else loads in full and logs the reason. `full_resync_every` in the
 config forces a periodic full load regardless, which is worth keeping.
 
+## Checking it against your own network
+
+An incremental run is only right if the diff it reads, folded into the previous
+rows, gives what a full read of the new snapshot would. Check that directly on
+any two processed snapshots, with the bundle published:
+
+```bash
+uv run python scripts/verify_diffs.py NETWORK_ID SNAPSHOT_A SNAPSHOT_B
+```
+
+It reads only. For each query it fetches every row at A, applies Forward's NQE
+diff from A to B with the same `apply_diff` the adapter uses, and compares with a
+full fetch of B. It was run this way on real snapshots, including one pair where
+most of the network changed, and every table reconstructed exactly.
+
 ## When a diff fails
 
 A table whose diff cannot be read is fetched in full, with a warning that names

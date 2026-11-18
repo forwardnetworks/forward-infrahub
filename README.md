@@ -48,14 +48,20 @@ failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.11.9:
 | `plan` again | no creates and no updates |
 | Rows skipped as unplaceable | 0 |
 
-Incremental runs, on a second network whose snapshot is complete (an incomplete
-one keeps no baseline, by design): the bundle published to Forward's library, a
-first plan fetched in full, and a second plan reported "the baseline; nothing to
-read from Forward".
+Reading snapshot diffs, on real snapshots of a second network that had changed
+between them (device count 133 to 698 in one pair, 83,747 prefixes down to 6,746;
+a smaller pair with 5 changed interfaces and `+8/-46` prefixes): for every
+bundled query, the rows of the first snapshot with Forward's NQE diff folded in
+equal a full fetch of the second, exactly, in all 15 tables.
+[`scripts/verify_diffs.py`](scripts/verify_diffs.py) runs that check on any
+network. Separately, a second plan on an unchanged snapshot reported "the
+baseline; nothing to read from Forward".
 
-Not yet verified: a snapshot-to-snapshot diff after the network has changed, a
-network with many LAGs (the demo network has one), and Infrahub versions other
-than 1.11.9.
+Not yet verified: the whole baseline handoff across two *different* snapshots.
+The adapter never makes an incomplete snapshot a baseline, and none of the
+account's networks had two complete snapshots, so that step was not exercised. Also
+not verified: a network with many LAGs (the demo network has one), and Infrahub
+versions other than 1.11.9.
 
 ## Install
 
@@ -203,6 +209,10 @@ many.
 that failed collection looks exactly like one that was decommissioned.
 infrahub-sync v3 records what Forward did not report and leaves it in Infrahub.
 Read [docs/safety.md](docs/safety.md).
+
+**Queries run on Forward's asynchronous NQE API.** Each is submitted, waited on and
+paged to completion, and once published, an incremental run asks Forward for the
+diff between two snapshots instead of the whole table.
 
 **Transient query failures are retried by the SDK.** A query Forward ran and
 finished with a transient error is resubmitted (`outcome_retries`, default 2). A
