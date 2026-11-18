@@ -15,7 +15,8 @@
 
 2. **Create the account.** The Infrahub destination attributes everything it
    writes to a `CoreAccount` named after `source.name`, so create one called
-   `forwardnetworks`. The load script prints the object to use.
+   `forwardnetworks`. The load script prints the object to use; Infrahub
+   requires a `password` on it.
 
 3. **Set the credentials.** `config.yml` reads them from the environment:
 
@@ -31,15 +32,24 @@
 
 ## Run it
 
+`plan`, `review` and `apply` look for the config at `<directory>/<name>/config.yml`,
+so copy it into that shape first:
+
 ```bash
-infrahub-sync generate --name from-forwardnetworks --directory .
-infrahub-sync diff     --name from-forwardnetworks
-infrahub-sync sync     --name from-forwardnetworks
+mkdir -p ../../sync/from-forwardnetworks
+cp config.yml ../../sync/from-forwardnetworks/config.yml
+CFG=../../sync/from-forwardnetworks/config.yml
+
+forward-infrahub plan  --config $CFG --name from-forwardnetworks
+forward-infrahub review RUN_ID --config $CFG --name from-forwardnetworks --detail
+forward-infrahub apply  RUN_ID --config $CFG --name from-forwardnetworks \
+    --expected-checksum CHECKSUM
 ```
 
-`generate` reads the live Infrahub schema, so the schema has to be loaded
-first. Run `diff` before `sync` on a network you have not synced before: it
-prints what would be created without writing anything.
+`plan` writes nothing: it saves what it would do and prints a checksum. `apply`
+writes the plan only if the checksum you pass is still the one saved, so what
+you reviewed is what is written. Read the plan before the first `apply` on a
+network you have not synced.
 
 ## Publish the queries
 
@@ -73,8 +83,9 @@ source:
 | --- | --- |
 | `OrganizationManufacturer`, `DcimPlatform`, `DcimDeviceType` | device platform data |
 | `LocationSite` | Forward locations |
-| `DcimDevice` | collected devices, with chassis serial and OS version |
-| `InterfacePhysical`, `InterfaceVirtual` | interfaces, split on whether they are ethernet |
+| `DcimDevice` | collected devices, with chassis serial; the description carries vendor, model and OS |
+| `InterfacePhysical`, `InterfaceVirtual`, `InterfaceLag` | interfaces, split on whether they are ethernet, with LAG membership |
+| `BuiltinTag` | tags Forward carries |
 | `IpamNamespace`, `IpamVRF` | network instances |
 | `IpamVLANGroup`, `IpamVLAN` | VLANs, grouped per site |
 | `IpamPrefix` | connected and routed prefixes, both families |

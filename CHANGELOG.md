@@ -4,11 +4,19 @@
 
 ### Changed
 
+- Relicensed from MIT to the Functional Source License 1.1 with an Apache-2.0
+  future license (`FSL-1.1-ALv2`); adds `NOTICE`. Commits up to `be85aab` were
+  published under MIT and stay under it.
+- README rewritten for infrahub-sync v3: plan, review and apply, a no-Forward
+  demo on the bundled fixture with Infrahub screenshots, and where this stands
+  against v3 (custom adapters in its Sync service are not supported upstream
+  yet, and 2.x is not supported).
+
 - infrahub-sync locked at `feature/v3-develop` @ `87d5a47` (still 3.0.0a5), 172
   commits past `d2a93d2`: plan approval and verification, resumable applies,
   a v2-to-V3 configuration converter, per-record source and owner, and a Sync
-  web frontend. forward-sdk bumped to 0.1.38 from 0.1.29. The test suite,
-  ruff and mypy pass; not yet run live.
+  web frontend. forward-sdk bumped to 0.1.38 from 0.1.29. Run live on a Forward
+  demo network of 122 devices; see the README's Verified section.
 - Queries now go through `client.nqe.query` instead of `execute`/`wait`/`rows`
   by hand, with the new `outcome_retries` setting (default 2, 0 turns it off):
   a query Forward ran and finished with a transient `SYSTEM_ERROR` is
@@ -23,13 +31,13 @@
   drafts and forks -- where before it ordered by `processedAt`, so a reprocessed
   older snapshot could be picked over a newer one. NQE queries gain opt-in
   outcome retries (used above) and `ForwardExecutionError` carries `detail`
-  and `attempts`. The test suite passes; not yet run live.
+  and `attempts`. Used live; see the README.
 - infrahub-sync locked at `feature/v3-develop` @ `d2a93d2` (3.0.0a5), from
   `7d545c3`. Upstream now sandboxes `schema_mapping` transforms, requires safe
   source watermarks and a complete baseline for incremental runs, requires both
   sides to be fully extracted before computing deletes, and requires the
   `INFRAHUB_SYNC_CREDENTIAL_` prefix on environment credentials for registered
-  runs. The test suite passes against it; not yet run live.
+  runs. Run live on a Forward demo network; see the README's Verified section.
 - `infrahub-sdk[ctl]` added to the dev group. 3.0.0a4 moved `[ctl]` out of
   infrahub-sync's base dependencies into its `service` extra, so `infrahubctl`
   (used by `infrahub-schema-load.sh`) is no longer installed implicitly.
@@ -59,6 +67,45 @@
 
 ### Fixed
 
+- An interface with no MAC address was written to Infrahub as an empty string,
+  which its `MacAddress` attribute rejects, so a real apply stopped part way
+  through. The query now reports null and the transform leaves it null.
+- A trunk interface was rewritten on every run: Forward lists a trunk's VLANs in
+  the order it holds them, Infrahub reads the relationship back in its own, and
+  a list that differs only in order is a change. Every many-relationship is now
+  resolved in sorted order, which is how infrahub-sync reads them back, so a
+  device's tags and a cable's two ends are covered as well as a trunk's VLANs.
+  A second plan on a real network finds nothing to do.
+- `forward_cables.nqe` emitted each link twice, once from each end. An inline
+  query tolerated it, but a query published to Forward's library enforces its
+  primary key and failed with "Duplicate rows found". It is `select distinct`
+  now: 398 rows became 199 on the network this was found on.
+- The device description carried the vendor's enum prefix ("Vendor.CISCO ...").
+  Existing devices get a one-time description update on the next apply.
+- A null MAC clears a MAC already stored in Infrahub, including one typed in by
+  hand, the same as any other attribute this sync owns.
+- A LAG number now ignores leading zeros (`Po01` is 1) and reads zero outside
+  0 to 4095, and the digits are matched only for LAGs.
+- `forward_interfaces.nqe` could not run on Forward at all. The layer-two and
+  LAG work was written and tested only against the replay fixture, which serves
+  rows by query name and never parses query text, so three errors reached the
+  first live run: a bare `let x = foreach ...` (Forward's parser needs
+  `let x = (foreach ...)`), field access on the `VlanIdOrRange` union
+  (`entry.ID`, `entry.RANGE`; a union is read with `when entry is ID(i) -> ...;
+  RANGE(r) -> ...`), and `toNumber` on a string (it takes an IP address; a LAG's
+  number is now matched against the integers 0 to 4095, and anything outside
+  reads as zero). All 15 bundled queries now run on a live network, and a plan
+  against it completed. New tests keep the first two out and run Forward's
+  offline `fwdctl nqe lint` over every bundled query when it is installed.
+- Credentials were referenced by plain environment names (`FORWARD_USERNAME`,
+  `INFRAHUB_API_TOKEN`), which infrahub-sync v3 now refuses outside its
+  `INFRAHUB_SYNC_CREDENTIAL_` namespace, so every run failed at configuration
+  check. The adapter now republishes them under that namespace for the run.
+- `infrahub-schema-load.sh` did not load the `lag` extension the config maps
+  (`InterfaceLag`), and its account snippet omitted the `password` Infrahub
+  requires.
+- The example README still described the v2 `generate`, `diff` and `sync`
+  commands.
 - A response body the Forward SDK could not parse no longer escapes the
   adapter's error handling. Every fetch funnels failures into
   `ForwardLoadError` with one `except ForwardError`, but until forward-sdk
