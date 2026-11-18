@@ -16,7 +16,9 @@
   future license (`FSL-1.1-ALv2`); adds `NOTICE`. Commits up to and including
   `be85aab` carry the MIT License and stay under it.
 - README rewritten for infrahub-sync v3: plan, review and apply, a no-Forward
-  demo on the bundled fixture with Infrahub screenshots, and where this stands
+  demo on the bundled fixture, a gallery of 24 screenshots (every kind it
+  writes, a device's detail and interface pages, and the terminal workflow),
+  and where this stands
   against v3 (custom adapters in its Sync service are not supported upstream
   yet, and 2.x is not supported).
 

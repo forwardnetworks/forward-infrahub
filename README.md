@@ -168,6 +168,56 @@ Run `plan` and read it before the first `apply` on a network you have not
 synced. [examples/forwardnetworks_to_infrahub](examples/forwardnetworks_to_infrahub)
 has the full `config.yml`, the schema, and the load steps.
 
+## Screenshots
+
+Every kind this sync writes, as it appears in Infrahub after the fixture demo
+above, and the terminal side of the workflow. The Infrahub pages and the first
+three terminal images are of the bundled fixture, a small fake network. The diff
+verification image is real output from a Forward demo network, with the network
+and snapshot ids left out.
+
+### The workflow
+
+| | |
+| --- | --- |
+| ![Plan and review](docs/images/terminal-plan.png) | ![Apply, then plan again](docs/images/terminal-apply.png) |
+| ![Checks before a sync](docs/images/terminal-checks.png) | ![Diff verification](docs/images/terminal-verify-diffs.png) |
+
+### Devices and interfaces
+
+A device's detail page shows its location, platform and type, and the activity
+log records the Loopback with no MAC address as empty rather than as an invalid
+value.
+
+| | |
+| --- | --- |
+| ![Devices](docs/images/infrahub-devices.png) | ![A device](docs/images/infrahub-device-detail.png) |
+| ![A device's interfaces](docs/images/infrahub-device-interfaces.png) | ![Physical interfaces](docs/images/infrahub-interfaces.png) |
+| ![LAGs](docs/images/infrahub-lags.png) | ![Virtual interfaces](docs/images/infrahub-virtual-interfaces.png) |
+
+### Addressing and links
+
+| | |
+| --- | --- |
+| ![Prefixes](docs/images/infrahub-prefixes.png) | ![IP addresses](docs/images/infrahub-ip-addresses.png) |
+| ![VLANs](docs/images/infrahub-vlans.png) | ![VRFs](docs/images/infrahub-vrfs.png) |
+| ![Cables](docs/images/infrahub-cables.png) |  |
+
+### Sites, platforms and tags
+
+| | |
+| --- | --- |
+| ![Sites](docs/images/infrahub-sites.png) | ![Tags](docs/images/infrahub-tags.png) |
+| ![Platforms](docs/images/infrahub-platforms.png) | ![Device types](docs/images/infrahub-device-types.png) |
+| ![Manufacturers](docs/images/infrahub-manufacturers.png) |  |
+
+### Cloud
+
+| | |
+| --- | --- |
+| ![Cloud accounts](docs/images/infrahub-cloud-accounts.png) | ![VPCs](docs/images/infrahub-cloud-vpcs.png) |
+| ![Subnets](docs/images/infrahub-cloud-subnets.png) | ![Services](docs/images/infrahub-cloud-services.png) |
+
 ## Commands
 
 | Command | What it does |
