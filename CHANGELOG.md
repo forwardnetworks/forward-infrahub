@@ -4,6 +4,11 @@
 
 ### Changed
 
+- infrahub-sync locked at `feature/v3-develop` @ `87d5a47` (still 3.0.0a5), 172
+  commits past `d2a93d2`: plan approval and verification, resumable applies,
+  a v2-to-V3 configuration converter, per-record source and owner, and a Sync
+  web frontend. forward-sdk bumped to 0.1.38 from 0.1.29. The test suite,
+  ruff and mypy pass; not yet run live.
 - Queries now go through `client.nqe.query` instead of `execute`/`wait`/`rows`
   by hand, with the new `outcome_retries` setting (default 2, 0 turns it off):
   a query Forward ran and finished with a transient `SYSTEM_ERROR` is
