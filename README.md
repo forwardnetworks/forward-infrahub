@@ -260,5 +260,5 @@ Functional Source License 1.1, Apache-2.0 future license
 you can read, run, modify and redistribute it for any purpose except a competing
 commercial product or service, and each release converts to Apache-2.0 two years
 after it is published. Commits up to and including `be85aab` carry
-under the MIT License and stay under it. See [NOTICE](NOTICE) for third-party software, which
+the MIT License and stay under it. See [NOTICE](NOTICE) for third-party software, which
 keeps its own license.
