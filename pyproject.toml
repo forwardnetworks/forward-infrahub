@@ -7,8 +7,8 @@ name = "forward-infrahub"
 dynamic = ["version"]
 description = "Forward Networks source adapter for infrahub-sync"
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "FSL-1.1-ALv2"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10,<3.14"
 authors = [{ name = "Forward Networks", email = "support@forwardnetworks.com" }]
 keywords = ["forward", "forward-networks", "infrahub", "infrahub-sync", "nqe", "diffsync"]
@@ -78,7 +78,7 @@ dev = [
 path = "src/forward_infrahub/__init__.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["src/forward_infrahub", "examples", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
+include = ["src/forward_infrahub", "examples", "tests", "README.md", "CHANGELOG.md", "LICENSE", "NOTICE"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/forward_infrahub"]
