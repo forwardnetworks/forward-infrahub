@@ -32,7 +32,7 @@ let a_device = if local_first then device.name else link.deviceName
 let a_interface = if local_first then interface.name else link.ifaceName
 let b_device = if local_first then link.deviceName else device.name
 let b_interface = if local_first then link.ifaceName else interface.name
-select {
+select distinct {
   device: a_device,
   interface: a_interface,
   remote_device: b_device,

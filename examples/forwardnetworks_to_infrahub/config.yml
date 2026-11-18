@@ -3,7 +3,7 @@
 #
 # Targets the Infrahub schema library (base + the location_site, vlan, vrf and
 # cable extensions) plus the small Cloud* extension this package ships. Load
-# them with ./infrahub-schema-load.sh before running `infrahub-sync generate`.
+# them with ./infrahub-schema-load.sh before `forward-infrahub plan`.
 name: from-forwardnetworks
 
 source:
@@ -227,8 +227,11 @@ schema_mapping:
       # case, so without this every interface differs from itself on the next
       # run and is rewritten: 1,986 of them on the network this was found on.
       # Matching Infrahub's form here is what makes the sync idempotent.
+      # An interface with no MAC reports null, and null stays null: Infrahub's
+      # MacAddress rejects an empty string, which is what ``| upper`` of nothing
+      # would otherwise leave behind.
       - field: mac_address
-        expression: "{{ mac_address | upper }}"
+        expression: "{{ mac_address | upper if mac_address else none }}"
       - field: l2_mode
         expression: "{{ mode | l2_mode }}"
     fields:

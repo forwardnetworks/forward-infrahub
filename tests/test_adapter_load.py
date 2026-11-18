@@ -223,3 +223,22 @@ def test_a_vrf_carries_only_what_forward_knows(adapter: Any) -> None:
     vrf = one(adapter, "IpamVRF", "BLUE")
     assert vrf.name == "BLUE"
     assert not hasattr(vrf, "vrf_rd") or vrf.vrf_rd is None
+
+
+def test_a_many_relationship_is_resolved_in_the_order_infrahub_reads_it_back(
+    adapter: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """infrahub-sync sorts a many-relationship as plain strings when it reads it.
+
+    A list that differs only in order is a change to the diff, so every ordering
+    Forward can return must come out the same: a trunk's VLANs, a device's tags,
+    and a cable's two ends (``sw1`` sorts after ``sw10`` once the interface is
+    joined on, because ``0`` sorts before ``_``).
+    """
+    monkeypatch.setattr(adapter, "_peer_exists", lambda kind, identifier: True)
+    ends = ["sw1__Ethernet1", "sw10__Ethernet1"]
+
+    forward = adapter._resolve_reference("InterfacePhysical", ends)
+    reverse = adapter._resolve_reference("InterfacePhysical", list(reversed(ends)))
+
+    assert forward == reverse == sorted(ends) == ["sw10__Ethernet1", "sw1__Ethernet1"]

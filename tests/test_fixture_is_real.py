@@ -58,9 +58,10 @@ def test_enum_columns_hold_real_members(
 
 
 def test_the_device_description_matches_what_the_query_builds(rows: dict[str, Any]) -> None:
-    """The query joins four columns; a fixture that disagrees has drifted."""
+    """The query joins four columns, vendor minus its enum prefix; a stale fixture drifted."""
     for row in rows["forward_devices"]:
-        expected = " ".join([row["vendor"], row["model"], row["platform"], row["os_version"]])
+        vendor = row["vendor"].replace("Vendor.", "")
+        expected = " ".join([vendor, row["model"], row["platform"], row["os_version"]])
         assert row["description"] == expected
 
 

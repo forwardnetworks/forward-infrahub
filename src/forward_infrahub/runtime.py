@@ -23,6 +23,12 @@ from forward_infrahub.exceptions import ForwardInfrahubError
 
 logger = logging.getLogger(__name__)
 
+try:
+    #: The only environment namespace infrahub-sync reads a credential from.
+    from infrahub_sync.configuration.credentials import ENV_CREDENTIAL_PREFIX
+except ImportError:  # pragma: no cover - a v3 build that predates the namespace
+    ENV_CREDENTIAL_PREFIX = "INFRAHUB_SYNC_CREDENTIAL_"
+
 #: Settings that name a secret, and the environment variable each reads.
 SOURCE_CREDENTIALS = {"username": "FORWARD_USERNAME", "password": "FORWARD_PASSWORD"}
 DESTINATION_CREDENTIALS = {"token": "INFRAHUB_API_TOKEN"}
@@ -62,10 +68,14 @@ def _credentialise(
         if isinstance(value, dict) and "$credential" in value:
             continue
         name = f"{prefix}-{setting}"
-        variable = default_var
-        if isinstance(value, str) and value:
-            variable = f"FORWARD_INFRAHUB_{prefix.upper()}_{setting.upper()}"
-            os.environ.setdefault(variable, value)
+        # infrahub-sync only reads a credential from its own namespace, so the
+        # value an operator exported under the ordinary name (or wrote in the
+        # config) is republished here, in this process, under a name inside it.
+        # It overwrites: a stale value left in the shell must not beat this run's.
+        variable = f"{ENV_CREDENTIAL_PREFIX}{prefix.upper()}_{setting.upper()}"
+        secret = value if isinstance(value, str) and value else os.environ.get(default_var, "")
+        if secret:
+            os.environ[variable] = secret
         out[setting] = {"$credential": name}
         credentials[name] = {"provider": "env", "identifier": variable}
     return out, credentials

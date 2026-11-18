@@ -533,7 +533,12 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 return MISSING
             resolved.append(text)
         if is_many:
-            return resolved
+            # Sorted as plain strings, which is how infrahub-sync reads a
+            # many-relationship back from Infrahub. A list that differs only in
+            # order is a change to the diff, so without this a trunk's VLANs,
+            # a device's tags or a cable's two ends would be rewritten on every
+            # run whenever Forward happens to list them in another order.
+            return sorted(resolved)
         return resolved[0] if resolved else None
 
     def _peer_exists(self, kind: str, identifier: str) -> bool:

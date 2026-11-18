@@ -14,11 +14,19 @@ where device.platform.vendor != Vendor.FORWARD_CUSTOM
 // drops the whole interface.
 let device_vids = distinct(foreach ni in device.networkInstances foreach vlan in ni.vlans select vlan.vlanId)
 // The aggregates on this device, so a member never names one that is absent.
-let lag_names = foreach i in device.interfaces where i.interfaceType == IfaceType.IF_AGGREGATE select i.name
+let lag_names = (foreach i in device.interfaces where i.interfaceType == IfaceType.IF_AGGREGATE select i.name)
 let site = if isPresent(device.locationName) then device.locationName else ""
 foreach interface in device.interfaces
   let is_ethernet = interface.interfaceType == IfaceType.IF_ETHERNET
   let is_lag = interface.interfaceType == IfaceType.IF_AGGREGATE
+  // NQE has no string-to-integer function (toNumber takes an IP address), so a
+  // LAG's number is found by matching its digits, leading zeros dropped, against
+  // the integers 0..4095. Only a LAG pays for any of it; a number outside the
+  // range reads as zero.
+  let lag_digits = if is_lag then replaceRegexMatches(interface.name, re`[^0-9]`, "") else ""
+  let lag_trimmed = replaceRegexMatches(lag_digits, re`^0+`, "")
+  let lag_text = if lag_digits != "" && lag_trimmed == "" then "0" else lag_trimmed
+  let lag_parsed = (foreach n in fromTo(0, if lag_text != "" then 4095 else -1) where toString(n) == lag_text select n)
   let speed_mbps = if is_ethernet then interface.ethernet.speedMbps else null : Integer
   let aggregate_id = if is_ethernet && isPresent(interface.ethernet.aggregateId) then interface.ethernet.aggregateId else ""
   let switched =
@@ -47,8 +55,9 @@ foreach interface in device.interfaces
       then distinct(
         foreach entry in switched.trunkVlans
         foreach vid in device_vids
-        where (isPresent(entry.ID) && vid == entry.ID)
-           || (isPresent(entry.RANGE) && vid >= entry.RANGE.from && vid <= entry.RANGE.to)
+        // VlanIdOrRange is a union: it is read with `when`, one case per
+        // alternative, never with field access.
+        where (when entry is ID(i) -> vid == i; RANGE(r) -> vid >= r.from && vid <= r.to)
         select vid)
       else (foreach vid in device_vids where false select vid)
   let interface_type =
@@ -74,14 +83,10 @@ select {
   site: site,
   lag: aggregate_id,
   lag_key: if aggregate_id != "" && aggregate_id in lag_names then join("__", [device.name, aggregate_id]) else "",
-  // Trailing digits of the aggregate's name. Zero rather than absent when it
-  // has none: the destination requires a number, and an is_not_empty filter
-  // reads zero as empty, so an absent one would drop ae0 and bond0.
-  lag_number: if is_lag then (
-    if replaceRegexMatches(interface.name, re`[^0-9]`, "") != ""
-      then toNumber(replaceRegexMatches(interface.name, re`[^0-9]`, ""))
-      else 0
-  ) else null : Integer,
+  // The digits in the aggregate's name. Zero rather than absent when it has
+  // none: the destination requires a number, and an is_not_empty filter reads
+  // zero as empty, so an absent one would drop ae0 and bond0. Null off a LAG.
+  lag_number: if is_lag then (if isEmpty(lag_parsed) then 0 else max(lag_parsed)) else null : Integer,
   mode: mode,
   untagged_vid: untagged_vid,
   tagged_vids: tagged_vids,
@@ -90,5 +95,5 @@ select {
   mtu: interface.mtu,
   description: if isPresent(interface.description) then interface.description else "",
   speed: if isPresent(speed_mbps) then speed_mbps * 1000 else null : Integer,
-  mac_address: if is_ethernet && isPresent(interface.ethernet.macAddress) then toString(interface.ethernet.macAddress) else ""
+  mac_address: if is_ethernet && isPresent(interface.ethernet.macAddress) then toString(interface.ethernet.macAddress) else null : String
 }

@@ -30,6 +30,7 @@ infrahubctl schema load \
   "$SCHEMA_LIBRARY/extensions/vlan/vlan.yml" \
   "$SCHEMA_LIBRARY/extensions/vrf/vrf.yml" \
   "$SCHEMA_LIBRARY/extensions/cable/cable.yml" \
+  "$SCHEMA_LIBRARY/extensions/lag/lag.yml" \
   "$HERE/schema.yml"
 
 # The destination marks everything it writes with an account named after
@@ -51,4 +52,5 @@ where account.yml is:
       - name: forwardnetworks
         label: Forward Networks
         account_type: Script
+        password: pick-something-long
 ACCOUNT

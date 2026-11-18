@@ -68,7 +68,7 @@
       "platform": "ARISTA_EOS",
       "os_version": "1.2.3",
       "serial_number": "SERIAL-001",
-      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.3",
+      "description": "ARISTA MODEL-A ARISTA_EOS 1.2.3",
       "tags": [
         "core",
         "managed"
@@ -83,7 +83,7 @@
       "platform": "ARISTA_EOS",
       "os_version": "1.2.4",
       "serial_number": "SERIAL-002",
-      "description": "Vendor.ARISTA MODEL-A ARISTA_EOS 1.2.4",
+      "description": "ARISTA MODEL-A ARISTA_EOS 1.2.4",
       "tags": [
         "edge"
       ]
@@ -109,7 +109,7 @@
       "mtu": 1500,
       "description": "to spine",
       "speed": null,
-      "mac_address": ""
+      "mac_address": null
     },
     {
       "device": "device-001",
@@ -147,7 +147,7 @@
       "mtu": 65535,
       "description": "",
       "speed": null,
-      "mac_address": ""
+      "mac_address": null
     },
     {
       "device": "device-002",
@@ -204,7 +204,7 @@
       "mtu": 1500,
       "description": "orphan: device not in this sync",
       "speed": null,
-      "mac_address": ""
+      "mac_address": null
     }
   ],
   "forward_vrfs": [
