@@ -77,12 +77,11 @@ jobs:
       # Not editable: the registered path resolves adapters from installed
       # distributions only, and an editable install is refused there.
       - run: uv sync --all-groups --no-editable
-      - name: Tests
-        run: uv run pytest -q
       - name: The adapter still resolves through its entry point
-        # --no-sync: a plain `uv run` re-syncs the project as editable, undoing
-        # the --no-editable install above, and the installed-only loader then
-        # refuses the adapter because it is imported from the source tree.
+        # --no-sync, and before anything else runs: a plain `uv run` re-syncs the
+        # project as editable, undoing the --no-editable install above, and the
+        # installed-only loader then refuses the adapter because it is imported
+        # from the source tree.
         run: |
           uv run --no-sync python - <<'PY'
           from infrahub_sync.plugin_loader import PluginLoader
@@ -94,3 +93,5 @@ jobs:
           assert capabilities.ADAPTER_NAME in table.BUILTIN_ADAPTER_CAPABILITIES
           print(f"{resolved.__name__} resolves, and declares its capabilities")
           PY
+      - name: Tests, against the installed package
+        run: uv run --no-sync pytest -q
