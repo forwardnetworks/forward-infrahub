@@ -80,8 +80,11 @@ jobs:
       - name: Tests
         run: uv run pytest -q
       - name: The adapter still resolves through its entry point
+        # --no-sync: a plain `uv run` re-syncs the project as editable, undoing
+        # the --no-editable install above, and the installed-only loader then
+        # refuses the adapter because it is imported from the source tree.
         run: |
-          uv run python - <<'PY'
+          uv run --no-sync python - <<'PY'
           from infrahub_sync.plugin_loader import PluginLoader
           import forward_infrahub.capabilities as capabilities
           import infrahub_sync.configuration.capabilities as table
