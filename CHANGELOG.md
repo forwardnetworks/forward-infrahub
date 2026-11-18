@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0a3] - 2026-11-18
+
 ### Added
 
 - `scripts/verify_diffs.py`: for each bundled query, folds Forward's NQE diff
