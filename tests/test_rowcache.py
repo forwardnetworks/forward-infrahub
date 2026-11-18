@@ -118,7 +118,7 @@ def test_a_missing_or_broken_baseline_reads_as_absent(tmp_path: Path) -> None:
 
 def test_two_syncs_keep_separate_caches(tmp_path: Path) -> None:
     """Two Forward networks into one Infrahub must not overwrite each other."""
-    assert RowCache(tmp_path, "from-wells").root != RowCache(tmp_path, "from-adp").root
+    assert RowCache(tmp_path, "from-network-a").root != RowCache(tmp_path, "from-network-b").root
 
 
 def entries(*payloads: dict[str, Any]) -> list[NqeDiffEntry]:

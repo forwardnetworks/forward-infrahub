@@ -15,7 +15,7 @@ following hold:
    nothing to compare inline source against. Publish them with
    `forward-infrahub publish-queries`.
 2. **A baseline exists.** After a clean run the adapter writes
-   `.infrahub-sync-cache/forward-baseline.json`, naming the snapshot it read,
+   `baseline.json` in the sync's cache directory (`.infrahub-sync-cache/<sync name>/`), naming the snapshot it read,
    the ownership scope, and the commit of each query.
 3. **The scope has not moved.** Different devices in scope, or an edited
    `schema_mapping`, means the previous rows were a different set.
@@ -25,19 +25,19 @@ following hold:
 Anything else loads in full and logs the reason. `full_resync_every` in the
 config forces a periodic full load regardless, which is worth keeping.
 
-## What it will not do
+## When a diff fails
 
-A failed diff is never quietly retried as a full load. A silent fallback
-produces a delta that looks exactly like a real one while being computed from a
-different baseline, and nothing downstream can tell the difference. The run
-fails and says what went wrong.
+A table whose diff cannot be read is fetched in full, with a warning that names
+the table and both snapshots. A whole table read fresh is always right; a diff
+that failed is not. Nothing is guessed from a partial delta.
 
 ## Deletions
 
-The diff reports added, changed and deleted rows. This adapter yields added and
-changed rows only. infrahub-sync detects removals by comparing what a run
-reports against the previous run's cached snapshot, so a row that stops being
-mentioned is already handled there, and reporting it twice would double count.
+The diff reports added, changed and deleted rows, and all three are applied to
+the cached table, which is then handed to the sync whole. A row Forward stops
+reporting is therefore absent from that run. Because infrahub-sync v3 never
+deletes, the matching object stays in Infrahub; the plan lists it as a recorded
+delete. See [safety](safety.md).
 
 ## Turning it off
 

@@ -5,8 +5,8 @@
 ### Changed
 
 - Relicensed from MIT to the Functional Source License 1.1 with an Apache-2.0
-  future license (`FSL-1.1-ALv2`); adds `NOTICE`. Commits up to `be85aab` were
-  published under MIT and stay under it.
+  future license (`FSL-1.1-ALv2`); adds `NOTICE`. Commits up to and including
+  `be85aab` carry the MIT License and stay under it.
 - README rewritten for infrahub-sync v3: plan, review and apply, a no-Forward
   demo on the bundled fixture with Infrahub screenshots, and where this stands
   against v3 (custom adapters in its Sync service are not supported upstream
@@ -67,6 +67,11 @@
 
 ### Fixed
 
+- Queries already published to a Forward library keep running the old text: the
+  adapter prefers the library copy and does not compare it with the bundle at run
+  time. After upgrading, run `forward-infrahub audit-queries` and then
+  `publish-queries`. An old `forward_cables` fails on a published library with
+  "Duplicate rows found".
 - An interface with no MAC address was written to Infrahub as an empty string,
   which its `MacAddress` attribute rejects, so a real apply stopped part way
   through. The query now reports null and the transform leaves it null.

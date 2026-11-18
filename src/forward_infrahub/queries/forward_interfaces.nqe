@@ -84,8 +84,8 @@ select {
   lag: aggregate_id,
   lag_key: if aggregate_id != "" && aggregate_id in lag_names then join("__", [device.name, aggregate_id]) else "",
   // The digits in the aggregate's name. Zero rather than absent when it has
-  // none: the destination requires a number, and an is_not_empty filter reads
-  // zero as empty, so an absent one would drop ae0 and bond0. Null off a LAG.
+  // none: the destination requires a number, so an absent one would drop ae0
+  // and bond0. Null off a LAG.
   lag_number: if is_lag then (if isEmpty(lag_parsed) then 0 else max(lag_parsed)) else null : Integer,
   mode: mode,
   untagged_vid: untagged_vid,

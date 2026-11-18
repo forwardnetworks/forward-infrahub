@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -38,9 +39,7 @@ def test_a_union_is_read_with_when_and_not_by_field_access(filename: str) -> Non
 
 @pytest.mark.skipif(shutil.which("fwdctl") is None, reason="fwdctl is not installed")
 @pytest.mark.parametrize("filename", QUERY_FILENAMES)
-def test_the_offline_nqe_linter_accepts_every_bundled_query(
-    filename: str, tmp_path: pytest.TempPathFactory
-) -> None:
+def test_the_offline_nqe_linter_accepts_every_bundled_query(filename: str, tmp_path: Path) -> None:
     path = tmp_path / filename
     path.write_text(read_query_execution_source(filename), encoding="utf-8")
 

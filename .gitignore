@@ -14,3 +14,7 @@ htmlcov/
 .infrahub-sync-cache/
 examples/**/forwardnetworks/
 examples/**/infrahub/
+# Where the README's walkthrough puts its working files
+demo/
+sync/
+account.yml

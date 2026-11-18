@@ -1,8 +1,8 @@
 ---
 # Forward Networks -> Infrahub.
 #
-# Targets the Infrahub schema library (base + the location_site, vlan, vrf and
-# cable extensions) plus the small Cloud* extension this package ships. Load
+# Targets the Infrahub schema library (base + the location_site, vlan, vrf, cable
+# and lag extensions) plus the small Cloud* extension this package ships. Load
 # them with ./infrahub-schema-load.sh before `forward-infrahub plan`.
 name: from-forwardnetworks
 
@@ -35,9 +35,10 @@ destination:
     # A CoreAccount named after source.name must exist: the destination marks
     # everything it writes with it, so operator edits stay distinguishable.
 
-# Deletes are off. Read docs/safety.md before removing this: Forward reports
-# what it collected, and a device that failed collection looks exactly like a
-# device that was decommissioned.
+# infrahub-sync v3 never deletes: a plan records what Forward did not report and
+# apply leaves it alone. Forward reports what it collected, and a device that
+# failed collection looks exactly like one that was decommissioned. Read
+# docs/safety.md. The flag below is what infrahub-sync 2.x read; v3 ignores it.
 diffsync_flags:
   - SKIP_UNMATCHED_DST
 

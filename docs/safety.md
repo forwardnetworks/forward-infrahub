@@ -3,33 +3,35 @@
 Forward reports what it collected. That is not the same as what exists, and
 every guard here follows from that one fact.
 
-## Deletes are off by default
+## Deletes are never applied
 
-The example config sets `SKIP_UNMATCHED_DST`, so a node in Infrahub that this
-sync does not produce is left alone. Remove it only when this sync genuinely
-owns those kinds in Infrahub, because the failure mode is not subtle: a device
-whose collection failed looks exactly like a device that was decommissioned.
+infrahub-sync v3 does not delete. A plan records the objects in Infrahub that this
+sync does not produce, `plan` prints how many (`26 delete(s) are recorded and will
+not be applied`), and `apply` writes the creates and updates and leaves those
+objects alone. Removing something from Infrahub is a decision for whoever owns
+that data, made in Infrahub.
 
-Before removing it, understand what the source is claiming:
+That is the right default for this source: a device whose collection failed looks
+exactly like a device that was decommissioned. When you read a plan, the recorded
+deletes are a list of what Forward did not report, not a list of what is gone.
 
-- **Was the snapshot complete?** `forward-infrahub resolve-snapshot` prints the
-  collection and processing failure counts. If they are non-zero, rows are
-  missing for reasons that have nothing to do with the network changing.
+Before trusting what Forward did report, understand what the source is claiming:
+
+- **Was the snapshot complete?** `forward-infrahub resolve-snapshot` prints
+  whether collection or processing failed. If it did, rows are missing for
+  reasons that have nothing to do with the network changing.
 - **Is the sync scoped?** Device and cloud allowlists mean the sync speaks for
   a subset. Everything outside that subset is missing from its output by
   design, and must not be read as deleted.
 
 ## The snapshot completeness gate
 
-If the snapshot reports collection or processing failures and the config would
-delete, the run refuses to start. Two ways past it:
-
-- `allow_incomplete_snapshot_deletes: true` accepts the risk for a run.
-- `require_complete_snapshot: true` goes the other way and refuses any run on
-  an incomplete snapshot, even one that only creates.
-
-Metrics that cannot be read count as incomplete. An unverified snapshot is not
-a clean one.
+A run on a snapshot that reports collection or processing failures still
+proceeds, with a warning (`snapshot N is incomplete; the baseline stays at the
+last complete one`), and an incomplete snapshot never becomes the incremental
+baseline. To refuse such a run outright, set `require_complete_snapshot: true`.
+Metrics that cannot be read count as incomplete: an unverified snapshot is not a
+clean one.
 
 ## Scoped runs
 
@@ -71,31 +73,6 @@ forward-infrahub check-identities --config config.yml
 Run it after any change to `identifiers`, to a transform feeding a field in an
 id, or to the destination schema. It reads the live schema, so it answers for
 the Infrahub you are actually syncing into.
-
-## The row-count guardrail, and narrowing a sync on purpose
-
-infrahub-sync compares each kind's row count against the last successful run
-and refuses to proceed when one collapses, which is the right default: a source
-that suddenly returns a fraction of what it did is far more often broken than
-newly tidy.
-
-It fires on a deliberate narrowing too. Adding the `scope_devices` filter to
-`LocationSite` took a real network from 394 sites to 13 and stopped the run:
-
-```
-RowcountGuardrailError: Rowcount guardrail tripped for 'LocationSite':
-dropped from 394 to 13 (ratio 0.03 < threshold 0.50).
-Pass --allow-rowcount-drop to override.
-```
-
-Pass `--allow-rowcount-drop` once, having checked the drop is the one you
-intended. The same applies the first time you add a device or cloud allowlist.
-
-Note what the flag does not do. With deletes off, the objects from the wider
-run stay in Infrahub: the 381 sites that fell out of scope are no longer
-written, and nothing removes them either. They are orphans of a scope change,
-not of anything upstream, and removing them is a decision for whoever owns that
-data.
 
 ## Publishing queries
 

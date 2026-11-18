@@ -100,7 +100,7 @@ def _mac_transform_expression() -> str:
         ).read_text()
     )
     physical = next(m for m in config["schema_mapping"] if m["name"] == "InterfacePhysical")
-    return next(t["expression"] for t in physical["transforms"] if t["field"] == "mac_address")
+    return str(next(t["expression"] for t in physical["transforms"] if t["field"] == "mac_address"))
 
 
 def test_an_interface_without_a_mac_stays_null_and_one_with_a_mac_is_upper_cased() -> None:

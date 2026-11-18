@@ -32,8 +32,8 @@ Infrahub as collected rather than as typed in by hand.
   populating a field.
 - **Incremental runs.** Once the queries are published, later runs read only
   what changed between two snapshots. See [docs/incremental.md](docs/incremental.md).
-- **Deletes off by default**, and guards for incomplete snapshots and scoped
-  runs. See [docs/safety.md](docs/safety.md).
+- **No deletes**, and guards for incomplete snapshots and scoped runs. See
+  [docs/safety.md](docs/safety.md).
 
 ## Verified
 
@@ -199,9 +199,10 @@ Renaming a VPC in a console must not create a second VPC in Infrahub.
 device Forward did not collect is skipped with a warning, and the plan says how
 many.
 
-**Deletes are off.** Forward reports what it collected, and a device that failed
-collection looks exactly like one that was decommissioned. Read
-[docs/safety.md](docs/safety.md) before turning them on.
+**Deletes are never applied.** Forward reports what it collected, and a device
+that failed collection looks exactly like one that was decommissioned.
+infrahub-sync v3 records what Forward did not report and leaves it in Infrahub.
+Read [docs/safety.md](docs/safety.md).
 
 **Transient query failures are retried by the SDK.** A query Forward ran and
 finished with a transient error is resubmitted (`outcome_retries`, default 2). A
@@ -258,6 +259,6 @@ Functional Source License 1.1, Apache-2.0 future license
 ([LICENSE](LICENSE), `FSL-1.1-ALv2`). It is source-available, not open source:
 you can read, run, modify and redistribute it for any purpose except a competing
 commercial product or service, and each release converts to Apache-2.0 two years
-after it is published. Commits up to and including `be85aab` were published
+after it is published. Commits up to and including `be85aab` carry
 under the MIT License and stay under it. See [NOTICE](NOTICE) for third-party software, which
 keeps its own license.
