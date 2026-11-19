@@ -5,7 +5,7 @@ Sync [Forward Networks](https://www.forwardnetworks.com/) into
 [infrahub-sync](https://github.com/opsmill/infrahub-sync) v3.
 
 > **Status: alpha.** Targets the infrahub-sync v3 alpha, which is not on PyPI
-> yet. Verified against Infrahub 1.11.9 and infrahub-sync `feature/v3-develop`
+> yet. Verified against Infrahub 1.11.9 and 1.12.1 and infrahub-sync `feature/v3-develop`
 > @ `87d5a47`, on the bundled fixture and on a live Forward network (see
 > [Verified](#verified)).
 
@@ -38,7 +38,9 @@ Infrahub as collected rather than as typed in by hand.
 ## Verified
 
 On a live Forward demo network of 122 devices (snapshot reporting collection
-failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.11.9:
+failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.11.9, then again, with the same results, into 1.12.1
+(plan 10 seconds, apply 3,026 objects in 153 seconds, a second plan with no creates
+or updates):
 
 | | |
 | --- | --- |
@@ -47,6 +49,10 @@ failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.11.9:
 | `apply` | 3,026 objects written in 157 seconds |
 | `plan` again | no creates and no updates |
 | Rows skipped as unplaceable | 0 |
+
+Writes after a change made in Infrahub, on 1.12.1 with infrahub-sdk 1.24.0: an
+object deleted by hand was re-created and a description edited by hand was
+restored, by one plan and one apply, and the next plan found nothing to do.
 
 Reading snapshot diffs, on real snapshots of a second network that had changed
 between them (device count 133 to 698 in one pair, 83,747 prefixes down to 6,746;
@@ -61,7 +67,7 @@ Not yet verified: the whole baseline handoff across two *different* snapshots.
 The adapter never makes an incomplete snapshot a baseline, and none of the
 account's networks had two complete snapshots, so that step was not exercised. Also
 not verified: a network with many LAGs (the demo network has one), and Infrahub
-versions other than 1.11.9.
+versions other than 1.11.9 and 1.12.1.
 
 ## Install
 
@@ -86,7 +92,7 @@ The package registers a `forwardnetworks` adapter with infrahub-sync, so
 The bundled fixture is a small, fake network: two devices, a LAG, a cable, a VLAN,
 prefixes, and an AWS account. It needs no Forward credentials, and it is how the
 screenshots on this page were made. You need an Infrahub to sync into; a
-throwaway one is fine (verified on 1.11.9).
+throwaway one is fine (verified on 1.11.9 and 1.12.1).
 
 ```bash
 # 1. Load the schema this sync targets: the schema library plus a small Cloud* extension.
