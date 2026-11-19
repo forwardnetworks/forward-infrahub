@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- forward-sdk 0.1.39 (from 0.1.38), and every other package re-locked to its newest
+  release. Two direct dependencies stay behind PyPI on purpose, because
+  infrahub-sync v3 itself caps them: `ruff` below 0.16 (a runtime dependency, for
+  stable formatting) and `pydantic` below 2.13 (which changes how floats
+  serialise). Python stays at 3.10 to 3.13 for the same reason.
+- CI actions moved to `actions/checkout@v7` and `astral-sh/setup-uv@v10.3.3`
+  (that project publishes no floating major tag, so the release is pinned).
+
 ## [0.1.0a4] - 2026-11-18
 
 ### Changed

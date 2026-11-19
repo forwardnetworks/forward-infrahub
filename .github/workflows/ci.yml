@@ -26,8 +26,8 @@ jobs:
         # checker targets.
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - run: uv sync --all-groups --python ${{ matrix.python }}
@@ -43,8 +43,8 @@ jobs:
     # so a change to either fails here rather than during somebody's sync.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync --all-groups
       - name: Query contracts
         run: uv run forward-infrahub check-contracts
@@ -68,8 +68,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Take infrahub-sync from the head of its branch
         run: uv lock --upgrade-package infrahub-sync
       - name: Report which commit that is
