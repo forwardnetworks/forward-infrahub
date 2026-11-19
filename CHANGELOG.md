@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0a4] - 2026-11-18
+
 ### Changed
 
 - Verified against Infrahub 1.12.1 as well as 1.11.9, with the same results: the
@@ -10,7 +12,8 @@
   153, and a second plan finds nothing to do. A hand-deleted object and a
   hand-edited description were repaired by one plan and apply. infrahub-sdk is
   locked at 1.24.0 (from 1.22.3), and the tests and live runs above were repeated
-  on it.
+  on it. The Infrahub screenshots were retaken on 1.12.1, whose pages gained a
+  Columns button and a branch icon.
 
 ## [0.1.0a3] - 2026-11-18
 

@@ -176,8 +176,8 @@ has the full `config.yml`, the schema, and the load steps.
 
 ## Screenshots
 
-Every kind this sync writes, as it appears in Infrahub after the fixture demo
-above, and the terminal side of the workflow. The Infrahub pages and the first
+Every kind this sync writes, as it appears in Infrahub 1.12.1 after the fixture
+demo above, and the terminal side of the workflow. The Infrahub pages and the first
 three terminal images are of the bundled fixture, a small fake network. The diff
 verification image is real output from a Forward demo network, with the network
 and snapshot ids left out.
