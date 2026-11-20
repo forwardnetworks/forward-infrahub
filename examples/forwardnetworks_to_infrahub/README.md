@@ -3,7 +3,7 @@
 ## Before the first run
 
 1. **Load the schema.** This sync targets the Infrahub schema library plus the
-   `Cloud*` extension in `schema.yml`. The script needs `infrahubctl`
+   extension in `schema.yml` (cloud kinds, OS releases and CVEs). The script needs `infrahubctl`
    (`pip install "infrahub-sdk[ctl]"`, or `uv run` it from a checkout of this
    repo, whose dev group already carries it):
 
@@ -91,7 +91,24 @@ source:
 | `IpamPrefix` | connected and routed prefixes, both families |
 | `IpamIPAddress` | interface addresses, including the device's primary |
 | `DcimCable` | resolved interface links |
+| `DcimSoftwareVersion` | OS releases, with end-of-maintenance, end-of-vulnerability-support and end-of-support dates where Forward has them, and the devices running each |
+| `SecurityVulnerability` | CVEs Forward confirmed on a device, with severity, publication date, CISA known-exploited flag, advisory and the affected devices |
 | `CloudAccount`, `CloudVPC`, `CloudSubnet`, `CloudService` | cloud inventory |
+
+`DcimSoftwareVersion` and `SecurityVulnerability` are optional. They use Forward's OS
+support dates and CVE data, which a licence tier may lack. Forward then returns
+that data empty, without an error: releases still load, with no dates, and the
+vulnerabilities table is empty. The sync warns when a network of ten or more
+devices returns no confirmed CVE at all.
+
+To leave them out, remove **three** things from `config.yml`, and nothing less:
+
+1. the `DcimSoftwareVersion` mapping and its entry in `order`;
+2. the `software_version` field of the `DcimDevice` mapping, and the transform of the
+   same name beside it (a device is linked to its release from the device, so a
+   device that names a release nothing loads would be skipped; the run now stops
+   with an error that says so);
+3. the `SecurityVulnerability` mapping and its entry in `order`.
 
 Devices Forward could not collect in the chosen snapshot are excluded: the
 queries require a completed collection, so a device that failed collection is

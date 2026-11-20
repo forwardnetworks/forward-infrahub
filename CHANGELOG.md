@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### Added
+
+- `DcimSoftwareVersion` and `SecurityVulnerability`: OS releases with their
+  vendor end-of-maintenance, end-of-vulnerability-support and end-of-support
+  dates, and the CVEs Forward confirmed on a device with severity, publication
+  date, CISA known-exploited flag and advisory, each linked to the devices it
+  covers. Infrahub's schema library has no place for either, so both ship in the
+  extension schema, with a relationship from `DcimDevice`. Two optional bundled
+  queries (`forward_software_versions.nqe`, `forward_vulnerabilities.nqe`; 17 in
+  all). On a 122-device network, into Infrahub 1.12.2: 16 releases, 376 CVEs and
+  1,826 device links, 3,418 objects in all applied in 194 seconds, and planning
+  again, fresh and from the row cache, finds nothing to change. Folding Forward's
+  NQE diff between two real snapshots into the earlier rows reproduces the later ones
+  exactly for both queries (releases 7 to 82, CVEs 106 to 534).
+- A device is linked to its release from the device side, because a device has one
+  release: written from the release side, a device that moved to a new release made
+  the apply fail, since Infrahub refuses it a second one and the new release was
+  never created. Checked on Infrahub 1.12.2 by moving a device between releases:
+  it is repointed, the old release stays unlinked, and the next plan is clean. A
+  CVE or release that disappears from Forward stays in Infrahub, as v3 never deletes.
+- A CVE Forward has no database entry for is shown with severity Unknown, not None.
+  A device that was not loaded (it has no location) is left out of a CVE's list,
+  counted in a warning, rather than costing the CVE its row, and a CVE none of
+  whose devices loaded is skipped.
+- A field that references a kind no mapping loads now stops the run with an error
+  naming it. It used to skip every row of the referencing kind: take out the release
+  mapping and keep the device's link to it, and no device was written.
+- A warning when a network of ten or more devices returns no confirmed CVE. Forward
+  empties CVE data, without an error, for a licence tier that lacks it.
+- `docs/roadmap.md`: an audit of what else Forward could give Infrahub, ranked.
+
 ### Changed
 
 - infrahub-sync v3 head `5c22b69` (local accounts, scheduled runs, a NetBox demo
@@ -17,6 +48,22 @@
   serialise). Python stays at 3.10 to 3.13 for the same reason.
 - CI actions moved to `actions/checkout@v7` and `astral-sh/setup-uv@v10.3.3`
   (that project publishes no floating major tag, so the release is pinned).
+
+### Fixed
+
+- Transforms edited the rows the row cache keeps, so a second run on the same
+  snapshot transformed values that were already transformed. It was invisible
+  while every transform was idempotent (title case, upper case, lower case) and
+  surfaced the first time one was not: a date that gets a time appended became
+  `...ZT12:00:00Z`. Transforms now work on copies, which also stops one mapping's
+  transforms leaking into another that reads the same table.
+- The row cache now carries a format number in its fingerprint, so a cache written
+  before transforms stopped editing rows in place is refused and the next run reads
+  in full. Manufacturer names, which are a primary key, were title-cased in the
+  cache, so an incremental diff could add a duplicate of a vendor already there (by the same
+  mechanism as the dates; not reproduced).
+- A sync scoped to some devices listed every device on a row it kept; a row now
+  names only the devices the sync owns.
 
 ## [0.1.0a4] - 2026-11-18
 

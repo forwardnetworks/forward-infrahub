@@ -5,8 +5,9 @@ Sync [Forward Networks](https://www.forwardnetworks.com/) into
 [infrahub-sync](https://github.com/opsmill/infrahub-sync) v3.
 
 > **Status: alpha.** Targets the infrahub-sync v3 alpha, which is not on PyPI
-> yet. Verified against Infrahub 1.11.9 and 1.12.1 and infrahub-sync `feature/v3-develop`
-> @ `87d5a47`, on the bundled fixture and on a live Forward network (see
+> yet. Verified against Infrahub 1.12.2 (and, before the release and CVE kinds
+> existed, 1.11.9 and 1.12.1) and infrahub-sync `feature/v3-develop` @ `5c22b69`,
+> on the bundled fixture and on a live Forward network (see
 > [Verified](#verified)).
 
 Forward collects the network by talking to it. Infrahub records what the
@@ -26,8 +27,16 @@ Infrahub as collected rather than as typed in by hand.
   IP addresses; LAG membership and layer-two VLAN membership; cables inferred
   from resolved links; tags Forward carries; and cloud accounts, VPCs, subnets
   and services.
+- **Software lifecycle.** Each OS release with the vendor's end-of-maintenance,
+  end-of-vulnerability-support and end-of-support dates, and each device linked
+  to the release it runs, so a release's end of support is one click from every
+  device on it. The schema library has no place for this, so a small extension
+  ships with the package.
+- **Vulnerabilities.** The CVEs Forward confirmed on a device, with severity,
+  publication date, CISA's known-exploited flag, the vendor advisory and the
+  devices each one affects. Also an extension.
 - **A tested query contract.** Data comes from Forward's query language, NQE.
-  Fifteen queries are bundled and their columns are checked by a test, so an
+  Seventeen queries are bundled and their columns are checked by a test, so an
   upgrade that changes one is caught there and not by a sync that quietly stops
   populating a field.
 - **Incremental runs.** Once the queries are published, later runs read only
@@ -37,28 +46,38 @@ Infrahub as collected rather than as typed in by hand.
 
 ## Verified
 
-On a live Forward demo network of 122 devices (snapshot reporting collection
-failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.11.9, then again, with the same results, into 1.12.1
-(plan 10 seconds, apply 3,026 objects in 153 seconds, a second plan with no creates
-or updates):
+On a live Forward demo network of 122 devices (its snapshot reports collection
+failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.12.2,
+with the code in this release:
 
 | | |
 | --- | --- |
-| Bundled queries run on Forward | all 15 |
-| `plan` | about 3,000 creates, in 10 seconds |
-| `apply` | 3,026 objects written in 157 seconds |
-| `plan` again | no creates and no updates |
+| Bundled queries run on Forward | all 17 |
+| `plan` | 3,418 creates in 29 seconds |
+| `apply` | 3,418 objects written in 194 seconds |
+| `plan` again, fresh and from the row cache | no creates and no updates |
 | Rows skipped as unplaceable | 0 |
 
-Writes after a change made in Infrahub, on 1.12.1 with infrahub-sdk 1.24.0: an
-object deleted by hand was re-created and a description edited by hand was
-restored, by one plan and one apply, and the next plan found nothing to do.
+That is the 3,026 objects of the original 15 queries plus 16 OS releases and 376
+confirmed CVEs. Before the release and CVE tables existed, the same network went
+into Infrahub 1.11.9 and 1.12.1 with the same results (apply in 153 to 157
+seconds).
+
+Repairs, on Infrahub 1.12.1 with infrahub-sdk 1.24.0: an object deleted by hand was
+re-created and a description edited by hand was restored, by one plan and one
+apply, and the next plan found nothing to do. On 1.12.2, a device moved from one
+OS release to another was repointed and the next plan was clean; that case is why
+a device is linked to its release from the device, not from the release.
+
+The fixture workflow with the release and CVE kinds also passes on Infrahub
+1.12.2: all 23 mappings agree on identity, 33 objects are created, and planning
+again, twice, finds nothing to change.
 
 Reading snapshot diffs, on real snapshots of a second network that had changed
 between them (device count 133 to 698 in one pair, 83,747 prefixes down to 6,746;
 a smaller pair with 5 changed interfaces and `+8/-46` prefixes): for every
 bundled query, the rows of the first snapshot with Forward's NQE diff folded in
-equal a full fetch of the second, exactly, in all 15 tables.
+equal a full fetch of the second, exactly, in all 17 tables.
 [`scripts/verify_diffs.py`](scripts/verify_diffs.py) runs that check on any
 network. Separately, a second plan on an unchanged snapshot reported "the
 baseline; nothing to read from Forward".
@@ -67,7 +86,7 @@ Not yet verified: the whole baseline handoff across two *different* snapshots.
 The adapter never makes an incomplete snapshot a baseline, and none of the
 account's networks had two complete snapshots, so that step was not exercised. Also
 not verified: a network with many LAGs (the demo network has one), and Infrahub
-versions other than 1.11.9 and 1.12.1.
+versions other than those above (the release and CVE kinds only on 1.12.2).
 
 ## Install
 
@@ -90,12 +109,13 @@ The package registers a `forwardnetworks` adapter with infrahub-sync, so
 ## Try it without Forward
 
 The bundled fixture is a small, fake network: two devices, a LAG, a cable, a VLAN,
-prefixes, and an AWS account. It needs no Forward credentials, and it is how the
+prefixes, an AWS account, two OS releases and three CVEs. It needs no Forward credentials, and it is how the
 screenshots on this page were made. You need an Infrahub to sync into; a
-throwaway one is fine (verified on 1.11.9 and 1.12.1).
+throwaway one is fine (verified on 1.12.2 with the release and CVE kinds, and on 1.11.9 and 1.12.1 without them).
 
 ```bash
-# 1. Load the schema this sync targets: the schema library plus a small Cloud* extension.
+# 1. Load the schema this sync targets: the schema library plus the small extension
+#    this package ships (cloud kinds, OS releases and CVEs).
 git clone https://github.com/opsmill/schema-library
 export INFRAHUB_ADDRESS=http://localhost:8000 INFRAHUB_API_TOKEN=...
 SCHEMA_LIBRARY=./schema-library ./examples/forwardnetworks_to_infrahub/infrahub-schema-load.sh
@@ -125,18 +145,18 @@ Then plan, review and apply:
 
 ```console
 $ forward-infrahub plan --config demo/from-forwardnetworks/config.yml --name from-forwardnetworks
-run:      20261118T1815-027110ed
-checksum: 590d8c63a8cf638981edea721131c482fc8dfba174e6c994692b69482bcef672
+run:      20261120T1518-6a1e0d3d
+checksum: 3f8e22f4e1a197511590a71278f341be84b2fc01b462629230d262ef82f19e41
 verified: yes
-   create: 28
+   create: 33
   BuiltinTag                 3
   CloudAccount               1
   ...
 
-$ forward-infrahub apply 20261118T1815-027110ed --config ... --name from-forwardnetworks \
-    --expected-checksum 590d8c63a8cf638981edea721131c482fc8dfba174e6c994692b69482bcef672
+$ forward-infrahub apply 20261120T1518-6a1e0d3d --config ... --name from-forwardnetworks \
+    --expected-checksum 3f8e22f4e1a197511590a71278f341be84b2fc01b462629230d262ef82f19e41
 status: applied
-   create: 28
+   create: 33
    delete: 0
    update: 0
 ```
@@ -176,7 +196,7 @@ has the full `config.yml`, the schema, and the load steps.
 
 ## Screenshots
 
-Every kind this sync writes, as it appears in Infrahub 1.12.1 after the fixture
+Every kind this sync writes, as it appears in Infrahub 1.12.2 after the fixture
 demo above, and the terminal side of the workflow. The Infrahub pages and the first
 three terminal images are of the bundled fixture, a small fake network. The diff
 verification image is real output from a Forward demo network, with the network
@@ -191,9 +211,8 @@ and snapshot ids left out.
 
 ### Devices and interfaces
 
-A device's detail page shows its location, platform and type, and the activity
-log records the Loopback with no MAC address as empty rather than as an invalid
-value.
+A device's detail page shows its location, platform and type, and the Interfaces
+tab lists its physical, virtual and LAG interfaces.
 
 | | |
 | --- | --- |
@@ -216,6 +235,18 @@ value.
 | ![Sites](docs/images/infrahub-sites.png) | ![Tags](docs/images/infrahub-tags.png) |
 | ![Platforms](docs/images/infrahub-platforms.png) | ![Device types](docs/images/infrahub-device-types.png) |
 | ![Manufacturers](docs/images/infrahub-manufacturers.png) |  |
+
+### Software lifecycle and vulnerabilities
+
+The two extension kinds: each OS release with the dates its vendor ends support
+and the devices running it, and each confirmed CVE with its severity, CISA
+known-exploited flag and the devices it affects.
+
+| | |
+| --- | --- |
+| ![OS releases and their support dates](docs/images/infrahub-software-versions.png) | ![A release, with its dates and announcement](docs/images/infrahub-software-version-detail.png) |
+| ![Devices running a release](docs/images/infrahub-software-version-devices.png) | ![Vulnerabilities](docs/images/infrahub-vulnerabilities.png) |
+| ![A vulnerability](docs/images/infrahub-vulnerability-detail.png) | ![Devices a vulnerability affects](docs/images/infrahub-vulnerability-devices.png) |
 
 ### Cloud
 
@@ -318,6 +349,13 @@ silently.
 The test suite needs neither Forward nor Infrahub: `replay_fixture` points the
 adapter at a JSON file of rows, which is also the fastest way to see what the
 adapter produces.
+
+## What else Forward could give Infrahub
+
+[docs/roadmap.md](docs/roadmap.md) audits Forward's data against Infrahub's schema
+library: what is synced, what has nowhere to go yet, and what to build next
+(BGP sessions, hardware inventory and its support dates, a drift report, Forward
+Predict as a Proposed Change check), ranked, with how each claim is known.
 
 ## License
 

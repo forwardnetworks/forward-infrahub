@@ -46,7 +46,9 @@ Any device or cloud allowlist makes the run partial. Two consequences:
 ## Rows that cannot be placed
 
 A row naming a peer that was not loaded is skipped and counted, not written
-with a missing relationship. An interface whose device is out of scope, an
+with a missing relationship. (A list of the devices a CVE affects is the exception: each
+device is its own link, so the CVE keeps the devices that did load, and the rest
+are counted in a warning. A CVE none of whose devices loaded is skipped.) An interface whose device is out of scope, an
 address whose interface never appeared: those are incomplete records, and a
 partial write would be harder to notice than an absent one. The counts are
 logged at the end of a load.
