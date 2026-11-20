@@ -4,6 +4,12 @@
 
 ### Changed
 
+- infrahub-sync v3 head `5c22b69` (local accounts, scheduled runs, a NetBox demo
+  command, frontend sign-in; the only file we import from that changed is
+  `adapters/infrahub.py`, a helper extracted without a behaviour change) and
+  forward-sdk 0.1.40. Re-run on both: all 15 queries reconstruct exactly from real
+  NQE diffs, the published queries match the bundle, and a fixture re-plan against
+  Infrahub 1.12.1 finds nothing to do.
 - forward-sdk 0.1.39 (from 0.1.38), and every other package re-locked to its newest
   release. Two direct dependencies stay behind PyPI on purpose, because
   infrahub-sync v3 itself caps them: `ruff` below 0.16 (a runtime dependency, for
