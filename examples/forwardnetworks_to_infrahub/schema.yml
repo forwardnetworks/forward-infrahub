@@ -1,8 +1,11 @@
 ---
-# Cloud inventory Forward collects that the Infrahub schema library does not
-# model. Identity is always the provider's own id, qualified by its parent: a
-# display name can change at any time, and syncing on one would create a second
-# object the next time somebody renamed a VPC in the console.
+# What Forward collects that the Infrahub schema library does not model: a cloud
+# inventory, and, further down, OS releases with their support dates and the CVEs
+# confirmed on devices.
+#
+# The cloud kinds first. Identity is always the provider's own id, qualified by its
+# parent: a display name can change at any time, and syncing on one would create a
+# second object the next time somebody renamed a VPC in the console.
 #
 # The parent is carried twice: as the relationship, which is what the data
 # means, and as a `parent_key` attribute, which is what a write can be keyed
@@ -200,3 +203,155 @@ nodes:
         cardinality: one
         optional: false
         identifier: cloudvpc__cloudservice
+
+  # Software releases and the vulnerabilities Forward finds on them. The schema
+  # library has no place for either: DcimPlatform is a name and a description,
+  # and nothing models a CVE or a support date. Both are optional, and what Forward
+  # returns for them depends on the organization's licence tier: a tier without
+  # the data gets those fields back empty, not an error.
+  #
+  # Each is identified by an attribute (the release's name, the CVE id) rather
+  # than by its relationships, for the same reason as the Cloud kinds: a write
+  # is keyed on the human-friendly id, and one that crosses a relationship has
+  # no key.
+  - name: SoftwareVersion
+    namespace: Dcim
+    label: Software Version
+    description: An operating-system release, with the dates its vendor ends support.
+    icon: mdi:application-cog-outline
+    include_in_menu: true
+    human_friendly_id:
+      - name__value
+    uniqueness_constraints:
+      - - name__value
+    display_label: name__value
+    order_by:
+      - name__value
+    attributes:
+      - name: name
+        kind: Text
+        optional: false
+        order_weight: 900
+        description: The OS family and the version, as in "IOS_XE 17.03.05".
+      - name: version
+        kind: Text
+        optional: false
+        order_weight: 950
+      - name: end_of_maintenance
+        kind: DateTime
+        optional: true
+        order_weight: 1000
+        description: The vendor stops shipping maintenance releases. Forward knows this
+          date only for some vendors.
+      - name: end_of_vulnerability_support
+        kind: DateTime
+        optional: true
+        order_weight: 1050
+        description: The vendor stops publishing security fixes.
+      - name: end_of_support
+        kind: DateTime
+        optional: true
+        order_weight: 1100
+        description: The vendor ends support, including its support centre.
+      - name: announcement_url
+        kind: Text
+        optional: true
+        order_weight: 1150
+        description: The vendor's end-of-life announcement, as a URL. Text rather than the
+          URL kind, which infrahub-sync does not read.
+    relationships:
+      - name: platform
+        peer: DcimPlatform
+        kind: Attribute
+        cardinality: one
+        optional: true
+        identifier: dcimplatform__dcimsoftwareversion
+      - name: devices
+        peer: DcimDevice
+        kind: Generic
+        cardinality: many
+        optional: true
+        identifier: dcimdevice__dcimsoftwareversion
+
+  - name: Vulnerability
+    namespace: Security
+    label: Vulnerability
+    description: A CVE that Forward confirmed on at least one device.
+    icon: mdi:shield-bug-outline
+    include_in_menu: true
+    human_friendly_id:
+      - cve_id__value
+    uniqueness_constraints:
+      - - cve_id__value
+    display_label: cve_id__value
+    order_by:
+      - cve_id__value
+    attributes:
+      - name: cve_id
+        kind: Text
+        optional: false
+        order_weight: 900
+      - name: severity
+        kind: Dropdown
+        optional: false
+        order_weight: 950
+        choices:
+          - name: critical
+            label: Critical
+            color: "#b71c1c"
+          - name: high
+            label: High
+            color: "#e65100"
+          - name: medium
+            label: Medium
+            color: "#f9a825"
+          - name: low
+            label: Low
+            color: "#7986cb"
+          - name: none
+            label: None
+            color: "#9e9e9e"
+          - name: unknown
+            label: Unknown
+            color: "#bdbdbd"
+      - name: published
+        kind: DateTime
+        optional: true
+        order_weight: 1000
+        description: The earliest publication among the vendors that published an advisory.
+      - name: cisa_kev
+        kind: Boolean
+        optional: false
+        default_value: false
+        order_weight: 1050
+        description: On CISA's known-exploited-vulnerabilities list.
+      - name: advisory_url
+        kind: Text
+        optional: true
+        order_weight: 1100
+        description: A vendor advisory for the CVE, as a URL.
+    relationships:
+      - name: devices
+        peer: DcimDevice
+        kind: Generic
+        cardinality: many
+        optional: true
+        identifier: dcimdevice__securityvulnerability
+
+# The other side of those relationships, on the library's own device kind.
+extensions:
+  nodes:
+    - kind: DcimDevice
+      relationships:
+        - name: software_version
+          peer: DcimSoftwareVersion
+          kind: Attribute
+          cardinality: one
+          optional: true
+          identifier: dcimdevice__dcimsoftwareversion
+        - name: vulnerabilities
+          peer: SecurityVulnerability
+          kind: Generic
+          cardinality: many
+          optional: true
+          identifier: dcimdevice__securityvulnerability

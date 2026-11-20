@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Literal, TypeAlias
 
 from diffsync import Adapter, DiffSyncModel
 from diffsync.exceptions import ObjectNotFound
-from forward_sdk import ForwardError
+from forward_sdk import ForwardConfigurationError, ForwardError
 from infrahub_sync import (
     DiffSyncMixin,
     DiffSyncModelMixin,
@@ -62,6 +62,9 @@ FetchMode = Literal["full", "diff", "unchanged"]
 
 #: Returned by reference resolution when a peer that should exist does not.
 MISSING = object()
+
+#: Below this many devices an empty CVE result is as likely to be true as hidden.
+VULNERABILITY_WARNING_MIN_DEVICES = 10
 
 #: Set to any non-empty value to force the next run to fetch everything.
 ENV_FULL_REFETCH = "FORWARD_FULL_REFETCH"
@@ -127,6 +130,8 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self.cloud_scope: ForwardCloudScope | None = None
         self.scope_fingerprint = ""
         self.skipped: Counter[str] = Counter()
+        #: Devices left out of a list of devices, by the kind and field that named them.
+        self.left_out: Counter[str] = Counter()
         self.cache = RowCache(self.settings.cache_directory, config.name or "forwardnetworks")
         #: How this run got its rows, and why, once ``_prepare`` has run.
         self.fetch_mode: FetchMode = "full"
@@ -164,11 +169,38 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             raise ForwardLoadError(f"no schema_mapping entry with a mapping for {model_name!r}")
         return found
 
+    def _check_references_are_mapped(self) -> None:
+        """Refuse a field that references a kind no mapping loads.
+
+        A reference to a peer that was not loaded skips the row that names it, so
+        one to a kind that is never loaded skips every row of the kind that names one: take the
+        release mapping out and keep the device's link to it, and no device is
+        written, nor anything that hangs off one. Better to stop and say why.
+        """
+        # What is loaded is what `order` names and has a mapping, which is what loading
+        # uses: a kind left in schema_mapping but out of `order` is not loaded.
+        loaded = {element.name for element in self._elements()}
+        for element in self._elements():
+            for field in element.fields:
+                # Only a field that maps a column resolves a reference at run time.
+                if not field.reference or field.static is not None or not field.mapping:
+                    continue
+                peers = GENERIC_PEERS.get(field.reference, (field.reference,))
+                if not any(kind in loaded for kind in peers):
+                    raise ForwardConfigurationError(
+                        f"{element.name}.{field.name} references {field.reference}, but nothing "
+                        f"loads {field.reference}, so every {element.name} row that names one "
+                        "would be skipped. "
+                        f"Remove the {field.name} field, or restore the {field.reference} mapping "
+                        "and its entry in `order`."
+                    )
+
     def _prepare(self) -> None:
         """Resolve the snapshot, run every query once, then scope and augment the rows."""
         if self._prepared:
             return
 
+        self._check_references_are_mapped()
         self.snapshot = resolve_snapshot(self.client, self.settings, self.network_id)
         logger.info(
             "snapshot %s (%s) is %s",
@@ -398,7 +430,33 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         rows = self.scoped(ref, self._runner.rows_for_ref(ref))
         if ref.spec is not None and ref.spec.augment is not None:
             rows = ref.spec.augment(rows, self._augment)
+        if ref.spec is not None and ref.spec.name == "vulnerabilities" and not rows:
+            self._warn_if_vulnerabilities_may_be_hidden()
         return rows
+
+    def _warn_if_vulnerabilities_may_be_hidden(self) -> None:
+        """Say so when a network of devices reports no confirmed CVE at all.
+
+        Forward does not refuse a query for CVE data the organization's licence
+        tier lacks: it empties the fields before the query runs. An empty result
+        is then indistinguishable from a network with nothing vulnerable, and
+        the API does not report the tier, so the only evidence is the size of
+        the network.
+        """
+        assert self._runner is not None
+        if self.device_scope is not None:
+            devices = len(self.device_scope.device_names)
+        elif self._runner.has(f"file:{DEVICE_SCOPE_FILE}"):
+            devices = len(self._runner.rows_for(f"file:{DEVICE_SCOPE_FILE}"))
+        else:
+            devices = 0
+        if devices >= VULNERABILITY_WARNING_MIN_DEVICES:
+            logger.warning(
+                "no confirmed vulnerabilities across %d devices. Either there are none, or the "
+                "organization's licence tier does not include CVE data, which Forward then "
+                "returns empty rather than refusing.",
+                devices,
+            )
 
     def scoped(self, ref: TableRef, rows: list[Row]) -> list[Row]:
         """Drop rows outside the device or cloud closure this sync owns."""
@@ -410,6 +468,17 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         if spec.scope != "cloud" and self.device_scope is not None:
             column = spec.scope_column
             kept = [row for row in rows if self.device_scope.includes(row, column=column)]
+            if column == "scope_devices":
+                # A row kept because one device is in scope still lists the others.
+                # A sync speaks only for the devices it owns, so it says no more.
+                owned = self.device_scope.device_names
+                kept = [
+                    {
+                        **row,
+                        column: [d for d in row.get(column) or [] if str(d or "").strip() in owned],
+                    }
+                    for row in kept
+                ]
             if column is None and rows:
                 # Route tables carry no device column, so a filtered run cannot
                 # tell which selected device contributed a prefix.
@@ -441,7 +510,14 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         """Apply the configured filters and transforms, then map rows to model fields."""
         is_source = self.config.source.name.title() == self.type.title()
         if is_source:
-            selected = model.filter_records(records=rows, schema_mapping=element)
+            # Transforms edit a row in place, so they get copies: the rows are the
+            # ones the cache keeps, and the ones another mapping of the same table
+            # reads next. A transform run twice on the same row is not always
+            # harmless (a date that gets a suffix appended), and a transform of
+            # one kind must not change what another kind sees.
+            selected = [
+                dict(row) for row in model.filter_records(records=rows, schema_mapping=element)
+            ]
             transformed = model.transform_records(records=selected, schema_mapping=element)
             logger.info(
                 "%s: loading %d/%d row(s) from %s",
@@ -478,7 +554,18 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 continue
             value = row.get(field.mapping)
             if field.reference:
-                resolved = self._resolve_reference(field.reference, value)
+                # A list of devices a row speaks for (``scope_devices``) is not the
+                # all-or-nothing reference a VLAN list is: each device is its own
+                # link, and a device that was not loaded (it has no location) must not take the CVE
+                # it is affected by with it.
+                partial = field.mapping == "scope_devices"
+                resolved = self._resolve_reference(
+                    field.reference,
+                    value,
+                    partial=partial,
+                    left_out=self.left_out,
+                    owner=f"{element.name}.{field.name}",
+                )
                 if resolved is MISSING:
                     self.skipped[f"{element.name}:unresolved {field.name}"] += 1
                     return None
@@ -510,7 +597,15 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             return tuple(field_map[i] for i in element.identifiers if i in field_map)
         return ()
 
-    def _resolve_reference(self, reference: str, value: Any) -> Any:
+    def _resolve_reference(
+        self,
+        reference: str,
+        value: Any,
+        *,
+        partial: bool = False,
+        left_out: Counter[str] | None = None,
+        owner: str = "",
+    ) -> Any:
         """Turn a peer identity from the query into the peer's DiffSync id.
 
         The queries emit these identities directly, joined the way DiffSync
@@ -530,8 +625,15 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             if not text:
                 continue
             if not any(self._peer_exists(kind, text) for kind in kinds):
+                if partial and is_many:
+                    if left_out is not None:
+                        left_out[owner] += 1
+                    continue
                 return MISSING
             resolved.append(text)
+        if partial and is_many and not resolved:
+            # Nothing it names was loaded, so there is nothing for the row to link.
+            return MISSING
         if is_many:
             # Sorted as plain strings, which is how infrahub-sync reads a
             # many-relationship back from Infrahub. A list that differs only in
@@ -554,6 +656,8 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 logger.info("%s", note)
         for reason, count in sorted(self.skipped.items()):
             logger.warning("skipped %d row(s): %s", count, reason)
+        for owner, count in sorted(self.left_out.items()):
+            logger.warning("left %d device(s) out of %s: they were not loaded", count, owner)
 
 
 def _as_list(value: Any) -> list[Any]:

@@ -85,3 +85,46 @@ def test_the_vrf_reference_is_empty_only_in_the_default_namespace(rows: dict[str
         for row in rows[table]:
             expected = "" if row["namespace"] == "default" else row["namespace"]
             assert row["vrf_ref"] == expected
+
+
+def test_a_software_releases_name_is_its_platform_and_version(rows: dict[str, Any]) -> None:
+    """The query builds the name from the two, so a fixture that disagrees has drifted."""
+    for row in rows["forward_software_versions"]:
+        assert row["name"] == f"{row['platform']} {row['version']}"
+
+
+def test_every_version_a_device_reports_has_a_release_row(rows: dict[str, Any]) -> None:
+    """The query makes one row per OS family and version a collected device runs."""
+    wanted = {f"{d['platform']} {d['os_version']}" for d in rows["forward_devices"]}
+    present = {row["name"] for row in rows["forward_software_versions"]}
+    assert wanted <= present
+
+
+def test_a_vulnerabilitys_severity_is_an_nqe_severity(rows: dict[str, Any]) -> None:
+    """The query strips the ``Severity.`` prefix, so a row carries the bare member."""
+    from forward_infrahub.nqe_types import nqe_members
+
+    known = nqe_members("Severity")
+    assert known, "the SDK no longer describes the Severity type"
+    for row in rows["forward_vulnerabilities"]:
+        assert row["severity"] in known
+
+
+def test_every_severity_the_query_can_emit_is_a_choice_in_the_schema() -> None:
+    """NQE's Severity members, lower-cased, plus the query's own `unknown`, are the dropdown."""
+    from pathlib import Path
+
+    import yaml
+
+    schema = yaml.safe_load(
+        (
+            Path(__file__).parent.parent / "examples/forwardnetworks_to_infrahub/schema.yml"
+        ).read_text()
+    )
+    node = next(n for n in schema["nodes"] if n["name"] == "Vulnerability")
+    attribute = next(a for a in node["attributes"] if a["name"] == "severity")
+    choices = {c["name"] for c in attribute["choices"]}
+
+    emitted = {member.lower() for member in nqe_members("Severity")} | {"unknown"}
+
+    assert emitted <= choices, f"the dropdown lacks {sorted(emitted - choices)}"

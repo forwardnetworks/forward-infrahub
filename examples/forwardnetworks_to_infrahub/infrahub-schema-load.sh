@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Load the schema this sync targets: the Infrahub schema library, plus the
-# small Cloud* extension that ships with forward-infrahub.
+# extension that ships with forward-infrahub (cloud kinds, OS releases and CVEs).
 #
 #   INFRAHUB_ADDRESS=http://localhost:8000 INFRAHUB_API_TOKEN=... ./infrahub-schema-load.sh
 #

@@ -18,3 +18,7 @@ examples/**/infrahub/
 demo/
 sync/
 account.yml
+
+# Crash dumps: a core file holds the dying process's memory, credentials included
+/core
+/core.[0-9]*

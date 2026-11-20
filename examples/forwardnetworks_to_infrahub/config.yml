@@ -2,8 +2,9 @@
 # Forward Networks -> Infrahub.
 #
 # Targets the Infrahub schema library (base + the location_site, vlan, vrf, cable
-# and lag extensions) plus the small Cloud* extension this package ships. Load
-# them with ./infrahub-schema-load.sh before `forward-infrahub plan`.
+# and lag extensions) plus the small extension this package ships (cloud kinds, OS
+# releases and CVEs). Load them with ./infrahub-schema-load.sh before
+# `forward-infrahub plan`.
 name: from-forwardnetworks
 
 source:
@@ -49,6 +50,9 @@ order:
   - OrganizationManufacturer
   - DcimPlatform
   - DcimDeviceType
+  # Optional: needs the OS support data; a device references its release, so the
+  # releases load first. See DcimSoftwareVersion below.
+  - DcimSoftwareVersion
   - LocationSite
   - BuiltinTag
   - DcimDevice
@@ -64,6 +68,8 @@ order:
   - IpamPrefix
   - IpamIPAddress
   - DcimCable
+  # Optional: needs the CVE data. See SecurityVulnerability below.
+  - SecurityVulnerability
   - CloudAccount
   - CloudVPC
   - CloudSubnet
@@ -148,6 +154,10 @@ schema_mapping:
   - name: DcimDevice
     mapping: nqe:devices
     identifiers: [name]
+    transforms:
+      # A device with no reported OS version has no release to link.
+      - field: software_version
+        expression: "{{ platform ~ ' ' ~ os_version if os_version else none }}"
     # LocationSite is required on a device, and Forward does not always know one.
     filters:
       - field: location
@@ -175,6 +185,11 @@ schema_mapping:
       - name: tags
         mapping: tags
         reference: BuiltinTag
+      # The release this device runs, named as the DcimSoftwareVersion rows are: the
+      # OS family and the version. Optional with that mapping, which must load first.
+      - name: software_version
+        mapping: software_version
+        reference: DcimSoftwareVersion
 
   # LAGs first: a member references its aggregate, and a reference to a peer
   # that has not been loaded drops the whole row.
@@ -456,6 +471,83 @@ schema_mapping:
       - name: connected_endpoints
         mapping: connected_endpoints
         reference: InterfacePhysical
+
+  # Optional. Remove this mapping, its entry in `order` and the `software_version`
+  # field and transform of DcimDevice together: a device that references a release nothing loads
+  # is skipped. Whether Forward returns the dates depends on the organization's
+  # licence tier, and a tier without them does not refuse the query: Forward
+  # empties those fields before it runs, so releases carry no dates.
+  #
+  # One row per OS release, not per device: the support dates belong to the
+  # release, and the devices running it come with the row. Dates are absent for
+  # vendors Forward has no lifecycle data for, which leaves the attribute unset.
+  #
+  # These are calendar dates and Infrahub's DateTime is an instant, shown in the
+  # viewer's timezone. Midnight UTC reads as the day before everywhere west of
+  # Greenwich, so the instant is noon UTC, which shows the same date from UTC-11
+  # to UTC+11.
+  - name: DcimSoftwareVersion
+    mapping: nqe:software_versions
+    identifiers: [name]
+    transforms:
+      - field: end_of_maintenance
+        expression: "{{ end_of_maintenance ~ 'T12:00:00Z' if end_of_maintenance else none }}"
+      - field: end_of_vulnerability_support
+        expression: "{{ end_of_vulnerability_support ~ 'T12:00:00Z' if end_of_vulnerability_support else none }}"
+      - field: end_of_support
+        expression: "{{ end_of_support ~ 'T12:00:00Z' if end_of_support else none }}"
+    fields:
+      - name: name
+        mapping: name
+      - name: version
+        mapping: version
+      - name: end_of_maintenance
+        mapping: end_of_maintenance
+      - name: end_of_vulnerability_support
+        mapping: end_of_vulnerability_support
+      - name: end_of_support
+        mapping: end_of_support
+      - name: announcement_url
+        mapping: announcement_url
+      - name: platform
+        mapping: platform
+        reference: DcimPlatform
+      # The devices running a release are not listed here. A device has one
+      # release, so the link is written from the device (see DcimDevice, field
+      # software_version): written from this side, a device that moved to a new
+      # release is refused, because Infrahub will not give it a second one, and
+      # the new release is never created.
+
+  # A CVE Forward confirmed on at least one device, with the devices it affects.
+  # Forward also lists the CVEs it ruled out on a device's configuration; those
+  # are not here. Optional: remove this mapping and its entry in `order`. Whether
+  # Forward returns CVE data depends on the organization's licence tier, and a tier
+  # without it does not refuse the query: Forward empties it, so this table comes
+  # back empty, and the run warns when a network of ten or more devices has none.
+  # A CVE that is no longer found stays in Infrahub, still linked to the devices it
+  # was found on, until someone removes it: infrahub-sync v3 never deletes.
+  - name: SecurityVulnerability
+    mapping: nqe:vulnerabilities
+    identifiers: [cve_id]
+    transforms:
+      - field: severity
+        expression: "{{ severity | lower }}"
+      - field: published
+        expression: "{{ published ~ 'T12:00:00Z' if published else none }}"
+    fields:
+      - name: cve_id
+        mapping: cve_id
+      - name: severity
+        mapping: severity
+      - name: published
+        mapping: published
+      - name: cisa_kev
+        mapping: cisa_kev
+      - name: advisory_url
+        mapping: advisory_url
+      - name: devices
+        mapping: scope_devices
+        reference: DcimDevice
 
   - name: CloudAccount
     # cloud_type arrives as a bare token (aws, azure, gcp): the query normalises it

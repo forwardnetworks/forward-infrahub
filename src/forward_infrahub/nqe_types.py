@@ -39,6 +39,10 @@ TYPE_SOURCES: dict[str, str] = {
     "OS": "NQE data-model reference type-os, and rendered by toString on a network",
     "NetworkInstanceType": "NQE data-model reference type-networkinstancetype",
     "CloudType": "NQE data-model reference type-cloudtype, and rendered on a network",
+    "Severity": (
+        "forward-sdk's generated NQE enums, and rendered by toString on a live network as "
+        "Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM and Severity.LOW"
+    ),
 }
 
 #: Where each type's members are documented, for an operator who hits a value

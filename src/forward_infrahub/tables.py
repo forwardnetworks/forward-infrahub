@@ -213,6 +213,8 @@ TABLES: dict[str, TableSpec] = {
         TableSpec("prefixes", ("forward_prefixes_ipv4.nqe", "forward_prefixes_ipv6.nqe"), "none"),
         TableSpec("ip_addresses", ("forward_ip_addresses.nqe",), "device"),
         TableSpec("cables", ("forward_cables.nqe",), "device"),
+        TableSpec("vulnerabilities", ("forward_vulnerabilities.nqe",), "scope_devices"),
+        TableSpec("software_versions", ("forward_software_versions.nqe",), "scope_devices"),
         TableSpec("cloud_accounts", ("forward_cloud_accounts.nqe",), "cloud"),
         TableSpec("cloud_networks", ("forward_cloud_networks.nqe",), "cloud"),
         TableSpec("cloud_services", ("forward_cloud_services.nqe",), "cloud"),

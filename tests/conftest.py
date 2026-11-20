@@ -33,6 +33,8 @@ MODEL_SHAPES: dict[str, dict[str, Any]] = {
     "IpamPrefix": {"ids": ("prefix", "ip_namespace"), "lists": ()},
     "IpamIPAddress": {"ids": ("address", "ip_namespace"), "lists": ("primary_of",)},
     "DcimCable": {"ids": ("label",), "lists": ("connected_endpoints",)},
+    "DcimSoftwareVersion": {"ids": ("name",), "lists": ()},
+    "SecurityVulnerability": {"ids": ("cve_id",), "lists": ("devices",)},
     "CloudAccount": {"ids": ("cloud_type", "account_id"), "lists": ()},
     "CloudVPC": {"ids": ("account_key", "network_id"), "lists": ("cidrs",)},
     "CloudSubnet": {"ids": ("vpc_key", "network_id"), "lists": ("cidrs",)},

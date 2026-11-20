@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from forward_infrahub.scope import (
     ForwardCloudScope,
     ForwardDeviceScope,
@@ -92,3 +94,19 @@ def test_fingerprint_ignores_order_and_blanks() -> None:
     assert build_scope_fingerprint(device_vendors=["a", "b"]) == build_scope_fingerprint(
         device_vendors=["b", "a", " "]
     )
+
+
+def test_a_cache_written_by_an_older_format_is_not_a_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rows cached before transforms stopped editing them in place hold transformed values.
+
+    Bumping the cache format changes the fingerprint, so such a cache is refused and
+    the next run reads in full instead of folding a diff into rows that are wrong.
+    """
+    from forward_infrahub import scope
+
+    current = build_scope_fingerprint(table_names=["devices"])
+    monkeypatch.setattr(scope, "CACHE_FORMAT", scope.CACHE_FORMAT - 1)
+
+    assert build_scope_fingerprint(table_names=["devices"]) != current

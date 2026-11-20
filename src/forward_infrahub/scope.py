@@ -110,6 +110,12 @@ def _sorted_set(values: Iterable[Any]) -> list[str]:
     return sorted({str(v).strip() for v in values if str(v).strip()})
 
 
+#: Bumped when what the row cache holds changes meaning, so a cache written by an older
+#: version is not a baseline for this one. 2: the cache used to hold rows that
+#: transforms had already edited in place; it now holds what the queries returned.
+CACHE_FORMAT = 2
+
+
 def build_scope_fingerprint(
     *,
     table_names: Iterable[str] = (),
@@ -127,6 +133,7 @@ def build_scope_fingerprint(
     baseline, so incremental diffs restart from a full load.
     """
     payload = {
+        "cache_format": CACHE_FORMAT,
         "cloud_account_ids": _sorted_set(cloud_account_ids),
         "cloud_types": _sorted_set(cloud_types),
         "device_models": _sorted_set(device_models),

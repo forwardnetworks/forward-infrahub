@@ -344,6 +344,66 @@
       "service_kind": "load-balancer"
     }
   ],
+  "forward_vulnerabilities": [
+    {
+      "cve_id": "CVE-2026-0001",
+      "severity": "CRITICAL",
+      "published": "2026-01-15",
+      "cisa_kev": true,
+      "advisory_url": "https://advisories.example.invalid/CVE-2026-0001",
+      "scope_devices": [
+        "device-001",
+        "device-002"
+      ]
+    },
+    {
+      "cve_id": "CVE-2026-0002",
+      "severity": "HIGH",
+      "published": "2026-03-02",
+      "cisa_kev": false,
+      "advisory_url": "https://advisories.example.invalid/CVE-2026-0002",
+      "scope_devices": [
+        "device-001"
+      ]
+    },
+    {
+      "cve_id": "CVE-2025-0003",
+      "severity": "MEDIUM",
+      "published": "2025-11-20",
+      "cisa_kev": false,
+      "advisory_url": "https://advisories.example.invalid/CVE-2025-0003",
+      "scope_devices": [
+        "device-002",
+        "device-999"
+      ]
+    }
+  ],
+  "forward_software_versions": [
+    {
+      "name": "ARISTA_EOS 1.2.3",
+      "platform": "ARISTA_EOS",
+      "version": "1.2.3",
+      "end_of_maintenance": "2025-06-30",
+      "end_of_vulnerability_support": "2026-06-30",
+      "end_of_support": "2027-06-30",
+      "announcement_url": "https://lifecycle.example.invalid/arista-eos-1.2",
+      "scope_devices": [
+        "device-001"
+      ]
+    },
+    {
+      "name": "ARISTA_EOS 1.2.4",
+      "platform": "ARISTA_EOS",
+      "version": "1.2.4",
+      "end_of_maintenance": null,
+      "end_of_vulnerability_support": null,
+      "end_of_support": null,
+      "announcement_url": null,
+      "scope_devices": [
+        "device-002"
+      ]
+    }
+  ],
   "diffs": {
     "forward_devices": [
       {

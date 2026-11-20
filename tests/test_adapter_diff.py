@@ -232,3 +232,42 @@ def test_merging_shards_unites_the_devices_each_one_saw() -> None:
     )
     by_name = {row["name"]: row["scope_devices"] for row in merged}
     assert by_name == {"Arista": ["device-001", "device-002"], "Cisco": ["device-003"]}
+
+
+def test_a_transform_does_not_rewrite_the_rows_the_cache_keeps(replay_config: SyncConfig) -> None:
+    """Transforms must work on copies of the rows, not on the rows themselves.
+
+    The row cache keeps what the queries returned. A transform that edits those
+    dicts in place leaves the transformed value in the cache, and the next run on
+    the same snapshot transforms it again: harmless for upper-casing, but a date
+    that gets ``T12:00:00Z`` appended becomes ``...ZT12:00:00Z``.
+    """
+    adapter = make(replay_config)
+    adapter.load()
+
+    cached = adapter.cache.rows("file:forward_software_versions.nqe")
+
+    assert cached is not None
+    dated = next(row for row in cached if row["name"] == "ARISTA_EOS 1.2.3")
+    assert dated["end_of_support"] == "2027-06-30"
+    assert adapter.get("DcimSoftwareVersion", "ARISTA_EOS 1.2.3").end_of_support == (
+        "2027-06-30T12:00:00Z"
+    )
+
+
+def test_a_second_run_on_the_same_snapshot_writes_the_same_values(
+    replay_config: SyncConfig,
+) -> None:
+    """The run that reads the cache must produce what the run that built it did."""
+    first = make(replay_config)
+    first.load()
+    second = make(replay_config)
+    second.load()
+
+    assert second.fetch_mode == "unchanged"
+    first_version = first.get("DcimSoftwareVersion", "ARISTA_EOS 1.2.3")
+    second_version = second.get("DcimSoftwareVersion", "ARISTA_EOS 1.2.3")
+    assert second_version.end_of_support == first_version.end_of_support
+    first_cve = first.get("SecurityVulnerability", "CVE-2026-0001")
+    second_cve = second.get("SecurityVulnerability", "CVE-2026-0001")
+    assert second_cve.published == first_cve.published

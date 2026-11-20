@@ -53,9 +53,13 @@ jobs:
           uv build
           uv run python - <<'PY'
           import glob, zipfile
+          from forward_infrahub.queries import QUERY_FILENAMES
           names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
-          queries = sum(1 for n in names if n.endswith(".nqe"))
-          assert queries == 15, f"expected 15 bundled queries in the wheel, found {queries}"
+          shipped = {n.rsplit("/", 1)[-1] for n in names if n.endswith(".nqe")}
+          queries = len(shipped)
+          # The wheel must carry exactly the queries the bundle declares: a missing
+          # one fails, and so does a stray one, without a count to keep in step.
+          assert shipped == set(QUERY_FILENAMES), f"wheel and bundle differ: {sorted(shipped ^ set(QUERY_FILENAMES))}"
           assert any(n.endswith("schemas/forward_cloud.yml") for n in names), "schema missing"
           assert any(n.endswith("entry_points.txt") for n in names), "entry point missing"
           print(f"wheel carries {queries} queries, the schema and the entry point")

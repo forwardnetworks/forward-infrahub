@@ -1,0 +1,47 @@
+/**
+ * @intent Forward vulnerabilities
+ * @description CVEs confirmed to affect at least one device, as SecurityVulnerability
+ *   rows, each with the devices it affects. Forward lists a finding for every CVE it
+ *   checked, including the ones it ruled out on the device's configuration, so only a
+ *   finding whose isVulnerable is true counts. severity, publication date and CISA
+ *   KEV come from the CVE database: the earliest publication among the vendors that
+ *   published one, and true when the CVE is on CISA's known-exploited list.
+ *   Forward empties the CVE data, without an error, for an organization whose licence
+ *   tier does not include it, so an empty result is not proof that nothing is vulnerable.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(cve_id)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  foreach finding in device.cveFindings
+  where finding.isVulnerable
+  select distinct {cve_id: finding.cveId, scope_device: device.name}
+)
+group row as grouped_rows by row.cve_id as cve_id
+let entries = (foreach cve in network.cveDatabase.cves where cve.cveId == cve_id select cve)
+let published = (
+  foreach cve in entries
+  foreach info in cve.vendorInfos
+  where isPresent(info.publicationDate)
+  select toString(info.publicationDate)
+)
+let advisories = (
+  foreach cve in entries
+  foreach info in cve.vendorInfos
+  where isPresent(info.url)
+  select info.url
+)
+let levels = (foreach cve in entries select replace(toString(cve.severity), "Severity.", ""))
+select {
+  cve_id: cve_id,
+  // A CVE the database has no entry for has no severity, which is not the same as
+  // NONE: Forward's own severity can be NONE, and this is "we do not know".
+  severity: if isEmpty(levels) then "UNKNOWN" else min(levels),
+  published: min(published),
+  cisa_kev: length(foreach cve in entries where isPresent(cve.cisaKevEntry) select 1) > 0,
+  advisory_url: min(advisories),
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

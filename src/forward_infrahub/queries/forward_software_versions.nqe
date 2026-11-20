@@ -1,0 +1,42 @@
+/**
+ * @intent Forward software versions
+ * @description Operating-system releases as DcimSoftwareVersion rows, one per OS family
+ *   and version, with the devices running each and, where Forward has it, the
+ *   release's end-of-maintenance, end-of-vulnerability-support and end-of-support
+ *   dates and the vendor's announcement. Forward knows these dates only for some
+ *   vendors, so the dates are absent, not empty, when it does not. Dates render as
+ *   YYYY-MM-DD. The OS prefix is stripped the way the platforms query strips it.
+ * @contract-version v3-infrahub
+ */
+
+@primaryKey(name)
+foreach row in (
+  foreach device in network.devices
+  where device.snapshotInfo.result == DeviceSnapshotResult.completed
+  where device.platform.vendor != Vendor.FORWARD_CUSTOM
+  where isPresent(device.platform.osVersion)
+  where device.platform.osVersion != ""
+  let os = replace(toString(device.platform.os), "OS.", "")
+  let support = device.platform.osSupport
+  select distinct {
+    name: join(" ", [os, device.platform.osVersion]),
+    platform: os,
+    version: device.platform.osVersion,
+    end_of_maintenance: if isPresent(support) && isPresent(support.lastMaintenanceDate) then toString(support.lastMaintenanceDate) else "",
+    end_of_vulnerability_support: if isPresent(support) && isPresent(support.lastVulnerabilityDate) then toString(support.lastVulnerabilityDate) else "",
+    end_of_support: if isPresent(support) && isPresent(support.lastSupportDate) then toString(support.lastSupportDate) else "",
+    announcement_url: if isPresent(support) && isPresent(support.announcementUrl) then support.announcementUrl else "",
+    scope_device: device.name
+  }
+)
+group row as grouped_rows by row.name as name
+select {
+  name: name,
+  platform: min(foreach candidate in grouped_rows select candidate.platform),
+  version: min(foreach candidate in grouped_rows select candidate.version),
+  end_of_maintenance: min(foreach candidate in grouped_rows where candidate.end_of_maintenance != "" select candidate.end_of_maintenance),
+  end_of_vulnerability_support: min(foreach candidate in grouped_rows where candidate.end_of_vulnerability_support != "" select candidate.end_of_vulnerability_support),
+  end_of_support: min(foreach candidate in grouped_rows where candidate.end_of_support != "" select candidate.end_of_support),
+  announcement_url: min(foreach candidate in grouped_rows where candidate.announcement_url != "" select candidate.announcement_url),
+  scope_devices: distinct(foreach candidate in grouped_rows select candidate.scope_device)
+}

@@ -242,3 +242,304 @@ def test_a_many_relationship_is_resolved_in_the_order_infrahub_reads_it_back(
     reverse = adapter._resolve_reference("InterfacePhysical", list(reversed(ends)))
 
     assert forward == reverse == sorted(ends) == ["sw10__Ethernet1", "sw1__Ethernet1"]
+
+
+def test_a_software_release_carries_its_dates_its_platform_and_its_devices(adapter: Any) -> None:
+    assert uids(adapter, "DcimSoftwareVersion") == {"ARISTA_EOS 1.2.3", "ARISTA_EOS 1.2.4"}
+    dated = one(adapter, "DcimSoftwareVersion", "ARISTA_EOS 1.2.3")
+    assert dated.platform == "ARISTA_EOS"
+    assert dated.version == "1.2.3"
+    assert dated.end_of_support == "2027-06-30T12:00:00Z"
+    assert dated.end_of_maintenance == "2025-06-30T12:00:00Z"
+
+
+def test_a_release_with_no_support_dates_leaves_them_unset(adapter: Any) -> None:
+    """Forward has no lifecycle data for some vendors: unset, not an empty string."""
+    undated = one(adapter, "DcimSoftwareVersion", "ARISTA_EOS 1.2.4")
+    assert undated.end_of_support is None
+    assert undated.end_of_maintenance is None
+    assert undated.announcement_url is None
+
+
+def test_a_vulnerability_carries_its_severity_date_and_devices(adapter: Any) -> None:
+    assert uids(adapter, "SecurityVulnerability") == {
+        "CVE-2026-0001",
+        "CVE-2026-0002",
+        "CVE-2025-0003",
+    }
+    critical = one(adapter, "SecurityVulnerability", "CVE-2026-0001")
+    assert critical.severity == "critical"
+    assert critical.published == "2026-01-15T12:00:00Z"
+    assert critical.cisa_kev is True
+    assert critical.devices == ["device-001", "device-002"]
+    assert one(adapter, "SecurityVulnerability", "CVE-2026-0002").cisa_kev is False
+
+
+def test_a_device_that_was_not_loaded_is_left_out_of_a_vulnerabilitys_devices(
+    adapter: Any,
+) -> None:
+    """device-999 is in the fixture's vulnerability row but is not a loaded device.
+
+    The CVE keeps its row and links the devices that did load, instead of
+    disappearing because one of them did not.
+    """
+    medium = one(adapter, "SecurityVulnerability", "CVE-2025-0003")
+    assert medium.devices == ["device-002"]
+    assert adapter.left_out["SecurityVulnerability.devices"] == 1
+
+
+def test_a_scoped_sync_lists_only_the_devices_it_owns(adapter: Any) -> None:
+    """A row kept because one device is in scope must not name the others."""
+    from forward_infrahub.scope import ForwardDeviceScope
+    from forward_infrahub.tables import parse_mapping
+
+    adapter.device_scope = ForwardDeviceScope(device_names=frozenset({"device-001"}))
+    rows = [
+        {"cve_id": "A", "scope_devices": ["device-001", "device-002"]},
+        {"cve_id": "B", "scope_devices": ["device-002"]},
+    ]
+
+    kept = adapter.scoped(parse_mapping("nqe:vulnerabilities"), rows)
+
+    assert kept == [{"cve_id": "A", "scope_devices": ["device-001"]}]
+
+
+def test_a_list_of_devices_none_of_which_loaded_gives_the_row_nothing_to_link(
+    adapter: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from forward_infrahub.adapter import MISSING
+
+    monkeypatch.setattr(adapter, "_peer_exists", lambda kind, identifier: False)
+
+    resolved = adapter._resolve_reference("DcimDevice", ["ghost-1", "ghost-2"], partial=True)
+
+    assert resolved is MISSING
+
+
+def test_a_calendar_date_shows_as_the_same_date_in_any_timezone_infrahub_is_viewed_in(
+    adapter: Any,
+) -> None:
+    """Infrahub renders a DateTime in the viewer's timezone, and these are dates.
+
+    Midnight UTC reads as the previous day for anyone west of Greenwich, which is
+    how a published CVE showed up a day early. The instant has to land on the same
+    calendar date from UTC-11 to UTC+11.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    stored = one(adapter, "DcimSoftwareVersion", "ARISTA_EOS 1.2.3").end_of_support
+    instant = datetime.fromisoformat(stored.replace("Z", "+00:00"))
+
+    for hours in (-11, -5, 0, 5, 11):
+        shown = instant.astimezone(timezone(timedelta(hours=hours)))
+        assert shown.date().isoformat() == "2027-06-30", f"UTC{hours:+d} shows {shown}"
+
+
+def _loaded_with_vulnerabilities_emptied(
+    replay_config: SyncConfig,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    minimum: int,
+    *,
+    empty: bool = True,
+) -> None:
+    import json
+    from pathlib import Path
+
+    from forward_infrahub import adapter as adapter_module
+    from forward_infrahub.adapter import ForwardnetworksAdapter
+
+    from .conftest import FIXTURE
+
+    payload = json.loads(Path(FIXTURE).read_text())
+    if empty:
+        payload["forward_vulnerabilities"] = []
+    target = tmp_path / "no-vulnerabilities.json"
+    target.write_text(json.dumps(payload))
+    settings = dict(replay_config.source.settings or {})
+    settings["replay_fixture"] = str(target)
+    replay_config.source.settings = settings
+    monkeypatch.setattr(adapter_module, "VULNERABILITY_WARNING_MIN_DEVICES", minimum)
+
+    instance = ForwardnetworksAdapter(
+        target="infrahub", adapter=replay_config.source, config=replay_config
+    )
+    for name, model in build_models(replay_config).items():
+        setattr(instance, name, model)
+    instance.top_level = list(replay_config.order)  # type: ignore[misc]
+    instance.load()
+
+
+def test_no_confirmed_vulnerabilities_across_a_network_warns_that_they_may_be_hidden(
+    replay_config: SyncConfig,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Forward empties CVE data for a tier without it, with no error, so say so."""
+    with caplog.at_level("WARNING"):
+        _loaded_with_vulnerabilities_emptied(replay_config, tmp_path, monkeypatch, minimum=2)
+
+    assert any("no confirmed vulnerabilities across 2 devices" in m for m in caplog.messages)
+
+
+def test_a_small_network_with_no_vulnerabilities_does_not_warn(
+    replay_config: SyncConfig,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING"):
+        _loaded_with_vulnerabilities_emptied(replay_config, tmp_path, monkeypatch, minimum=3)
+
+    assert not any("no confirmed vulnerabilities" in m for m in caplog.messages)
+
+
+def test_vulnerabilities_present_means_no_warning(
+    replay_config: SyncConfig,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The ordinary fixture has CVEs. The load happens inside the test, so the log is real."""
+    with caplog.at_level("WARNING"):
+        _loaded_with_vulnerabilities_emptied(
+            replay_config, tmp_path, monkeypatch, minimum=1, empty=False
+        )
+
+    assert not any("no confirmed vulnerabilities" in m for m in caplog.messages)
+
+
+def test_a_device_names_the_release_it_runs(adapter: Any) -> None:
+    """The link is written from the device, which has exactly one release."""
+    assert one(adapter, "DcimDevice", "device-001").software_version == "ARISTA_EOS 1.2.3"
+    assert one(adapter, "DcimDevice", "device-002").software_version == "ARISTA_EOS 1.2.4"
+
+
+def test_a_device_with_no_reported_os_version_has_no_release_to_link() -> None:
+    from pathlib import Path
+
+    import yaml
+    from infrahub_sync import DiffSyncModelMixin
+
+    config = yaml.safe_load(
+        (
+            Path(__file__).parent.parent / "examples/forwardnetworks_to_infrahub/config.yml"
+        ).read_text()
+    )
+    device = next(m for m in config["schema_mapping"] if m["name"] == "DcimDevice")
+    expression = next(
+        t["expression"] for t in device["transforms"] if t["field"] == "software_version"
+    )
+    known = {"platform": "IOS_XE", "os_version": "17.03.05"}
+    unknown = {"platform": "IOS_XE", "os_version": ""}
+
+    DiffSyncModelMixin.apply_transform(known, expression, "software_version")
+    DiffSyncModelMixin.apply_transform(unknown, expression, "software_version")
+
+    assert known["software_version"] == "IOS_XE 17.03.05"
+    assert "software_version" not in unknown
+
+
+def test_the_empty_cve_warning_counts_the_devices_a_scoped_sync_owns(
+    adapter: Any, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filtered sync whose own devices have no CVEs must not warn for the whole network."""
+    from forward_infrahub import adapter as adapter_module
+    from forward_infrahub.scope import ForwardDeviceScope
+
+    monkeypatch.setattr(adapter_module, "VULNERABILITY_WARNING_MIN_DEVICES", 2)
+
+    adapter.device_scope = ForwardDeviceScope(device_names=frozenset({"device-001"}))
+    with caplog.at_level("WARNING"):
+        adapter._warn_if_vulnerabilities_may_be_hidden()
+    assert not any("no confirmed vulnerabilities" in m for m in caplog.messages)
+
+    adapter.device_scope = ForwardDeviceScope(device_names=frozenset({"device-001", "device-002"}))
+    with caplog.at_level("WARNING"):
+        adapter._warn_if_vulnerabilities_may_be_hidden()
+    assert any("no confirmed vulnerabilities across 2 devices" in m for m in caplog.messages)
+
+
+def _adapter_for(config: SyncConfig) -> Any:
+    from forward_infrahub.adapter import ForwardnetworksAdapter
+
+    instance = ForwardnetworksAdapter(target="infrahub", adapter=config.source, config=config)
+    for name, model in build_models(config).items():
+        setattr(instance, name, model)
+    instance.top_level = list(config.order)  # type: ignore[misc]
+    return instance
+
+
+def test_taking_out_the_release_mapping_but_not_the_devices_link_to_it_stops_the_run(
+    replay_config: SyncConfig,
+) -> None:
+    """Otherwise every device with an OS version is skipped, and everything hanging off one."""
+    from forward_sdk import ForwardConfigurationError
+
+    replay_config.schema_mapping = [
+        e for e in replay_config.schema_mapping if e.name != "DcimSoftwareVersion"
+    ]
+    replay_config.order = [k for k in replay_config.order if k != "DcimSoftwareVersion"]
+
+    with pytest.raises(ForwardConfigurationError, match=r"DcimDevice\.software_version"):
+        _adapter_for(replay_config).load()
+
+
+def test_opting_out_of_releases_and_cves_as_documented_still_loads_every_device(
+    replay_config: SyncConfig,
+) -> None:
+    """The edits the example README and config.yml describe, and nothing more.
+
+    The release mapping and its `order` entry, the device's `software_version` field
+    and its transform, and the CVE mapping and its `order` entry.
+    """
+    gone = {"DcimSoftwareVersion", "SecurityVulnerability"}
+    replay_config.schema_mapping = [e for e in replay_config.schema_mapping if e.name not in gone]
+    replay_config.order = [k for k in replay_config.order if k not in gone]
+    for element in replay_config.schema_mapping:
+        if element.name == "DcimDevice":
+            element.fields = [f for f in element.fields if f.name != "software_version"]
+            element.transforms = [
+                t for t in (element.transforms or []) if t.field != "software_version"
+            ]
+
+    instance = _adapter_for(replay_config)
+    instance.load()
+
+    assert uids(instance, "DcimDevice") == {"device-001", "device-002"}
+    assert uids(instance, "InterfacePhysical")
+
+
+def test_taking_the_release_out_of_order_but_leaving_its_mapping_also_stops_the_run(
+    replay_config: SyncConfig,
+) -> None:
+    """A mapping outside `order` is not loaded, so the device's link to it is just as broken."""
+    from forward_sdk import ForwardConfigurationError
+
+    replay_config.order = [k for k in replay_config.order if k != "DcimSoftwareVersion"]
+
+    with pytest.raises(ForwardConfigurationError, match=r"DcimDevice\.software_version"):
+        _adapter_for(replay_config).load()
+
+
+def test_a_field_that_resolves_no_reference_at_run_time_is_not_checked(
+    replay_config: SyncConfig,
+) -> None:
+    """Loading resolves a reference only for a field with a mapping and no static value.
+
+    A static value, or a field that maps nothing, never reaches reference resolution,
+    so a reference on it must not be mistaken for a missing mapping.
+    """
+    from infrahub_sync import SchemaMappingField
+
+    for element in replay_config.schema_mapping:
+        if element.name == "DcimCable":
+            element.fields.append(
+                SchemaMappingField(
+                    name="static_note", static="x", mapping="label", reference="KindNobodyLoads"
+                )
+            )
+            element.fields.append(SchemaMappingField(name="bare", reference="KindNobodyLoads"))
+
+    _adapter_for(replay_config).load()  # no ForwardConfigurationError
