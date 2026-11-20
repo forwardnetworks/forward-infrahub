@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0a5] - 2026-11-20
+
 ### Added
 
 - `DcimSoftwareVersion` and `SecurityVulnerability`: OS releases with their
