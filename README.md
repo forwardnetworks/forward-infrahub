@@ -335,20 +335,8 @@ because it speaks for part of the network rather than all of it.
 
 ## Development
 
-```bash
-uv sync
-uv run pytest          # offline, against a fixture
-uv run ruff check .
-uv run mypy
-```
-
-The Forward SDK is pinned to an exact version rather than a range. It is pre-1.0
-and its surface is still moving, so a range would let a breaking change in
-silently.
-
-The test suite needs neither Forward nor Infrahub: `replay_fixture` points the
-adapter at a JSON file of rows, which is also the fastest way to see what the
-adapter produces.
+How changes are made, how the code is laid out, and the checks CI runs (all offline, against
+a fixture): [docs/contributing.md](docs/contributing.md).
 
 ## What else Forward could give Infrahub
 
