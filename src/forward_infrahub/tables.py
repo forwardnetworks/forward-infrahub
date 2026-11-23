@@ -12,8 +12,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-from forward_sdk import ForwardConfigurationError
-
+from forward_infrahub.exceptions import InvalidConfiguration
 from forward_infrahub.normalize import normalize_location_key
 
 __all__ = [
@@ -276,22 +275,22 @@ def parse_mapping(mapping: str | None) -> TableRef:
     scheme, sep, key = text.partition(":")
     key = key.strip()
     if not sep or not key:
-        raise ForwardConfigurationError(
+        raise InvalidConfiguration(
             f"mapping {text!r} must look like 'nqe:<table>', 'nqe-path:/dir/query', "
             "'nqe-id:FQ_...' or 'nqe-file:path.nqe'"
         )
     if scheme == "nqe":
         spec = TABLES.get(key)
         if spec is None:
-            raise ForwardConfigurationError(
+            raise InvalidConfiguration(
                 f"unknown bundled table {key!r}; choose one of {', '.join(sorted(TABLES))}"
             )
         return TableRef("nqe", key, spec)
     if scheme in {"nqe-path", "nqe-id", "nqe-file"}:
         return TableRef(scheme, key)  # type: ignore[arg-type]
     if scheme == "rest":
-        raise ForwardConfigurationError("rest: tables are not supported yet; use an nqe: table")
-    raise ForwardConfigurationError(f"unknown mapping scheme {scheme!r} in {text!r}")
+        raise InvalidConfiguration("rest: tables are not supported yet; use an nqe: table")
+    raise InvalidConfiguration(f"unknown mapping scheme {scheme!r} in {text!r}")
 
 
 def query_files_for(refs: Iterable[TableRef]) -> set[str]:

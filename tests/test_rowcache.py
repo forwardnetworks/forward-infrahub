@@ -22,12 +22,14 @@ PUBLISHED = ResolvedQuery(
     ref=QueryRef.by_id("FQ_devices", commit_id="commit-1"),
     diff_capable=True,
     label="forward_devices.nqe",
+    commit_id="commit-1",
 )
 INLINE = ResolvedQuery(
     key="file:forward_vlans.nqe",
     ref=QueryRef.inline("foreach d in network.devices select {}"),
     diff_capable=False,
     label="forward_vlans.nqe",
+    commit_id="",
 )
 BASELINE = Baseline(
     snapshot_id="snap-1",
@@ -79,6 +81,7 @@ def test_a_query_resolved_without_a_commit_is_refused() -> None:
         ref=QueryRef.by_id("FQ_devices"),
         diff_capable=True,
         label="forward_devices.nqe",
+        commit_id="",
     )
     assert "without a commit" in reason(queries=[unpinned])
 

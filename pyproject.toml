@@ -28,7 +28,7 @@ dependencies = [
   # Pinned exactly: the SDK is pre-1.0 and its surface is still moving.
   # 0.1.5 is a floor for a reason below it: a response body the SDK could not
   # parse raised pydantic's ValidationError, which is not a ForwardError and
-  # so walked straight through every `except ForwardError` here. 0.1.6 is a
+  # so walked straight past the adapter's translation of the SDK's errors. 0.1.6 is a
   # floor for a second reason: its NQE paging guard no longer misreads a
   # query whose rows look identical (`select {n: 1}`, an aggregate) as a
   # server-side stall, which earlier versions reported as a 250,000-row cap

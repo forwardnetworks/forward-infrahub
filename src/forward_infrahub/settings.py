@@ -5,11 +5,11 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-from forward_sdk import ForwardConfigurationError
 from forward_sdk.nqe.enums import suggest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forward_infrahub import __version__
+from forward_infrahub.exceptions import InvalidConfiguration
 from forward_infrahub.nqe_types import DEVICE_TYPE, MEMBER_SOURCES, VENDOR, nqe_members
 from forward_infrahub.scope import scope_token
 
@@ -174,7 +174,7 @@ class AdapterSettings(BaseModel):
     def resolved_network_id(self) -> str:
         network_id = self.network_id or os.environ.get(ENV_NETWORK_ID, "")
         if not network_id:
-            raise ForwardConfigurationError(
+            raise InvalidConfiguration(
                 f"network_id is required: set source.settings.network_id or {ENV_NETWORK_ID}"
             )
         return str(network_id).strip()

@@ -475,14 +475,14 @@ def test_taking_out_the_release_mapping_but_not_the_devices_link_to_it_stops_the
     replay_config: SyncConfig,
 ) -> None:
     """Otherwise every device with an OS version is skipped, and everything hanging off one."""
-    from forward_sdk import ForwardConfigurationError
+    from forward_infrahub.exceptions import InvalidConfiguration
 
     replay_config.schema_mapping = [
         e for e in replay_config.schema_mapping if e.name != "DcimSoftwareVersion"
     ]
     replay_config.order = [k for k in replay_config.order if k != "DcimSoftwareVersion"]
 
-    with pytest.raises(ForwardConfigurationError, match=r"DcimDevice\.software_version"):
+    with pytest.raises(InvalidConfiguration, match=r"DcimDevice\.software_version"):
         _adapter_for(replay_config).load()
 
 
@@ -515,11 +515,11 @@ def test_taking_the_release_out_of_order_but_leaving_its_mapping_also_stops_the_
     replay_config: SyncConfig,
 ) -> None:
     """A mapping outside `order` is not loaded, so the device's link to it is just as broken."""
-    from forward_sdk import ForwardConfigurationError
+    from forward_infrahub.exceptions import InvalidConfiguration
 
     replay_config.order = [k for k in replay_config.order if k != "DcimSoftwareVersion"]
 
-    with pytest.raises(ForwardConfigurationError, match=r"DcimDevice\.software_version"):
+    with pytest.raises(InvalidConfiguration, match=r"DcimDevice\.software_version"):
         _adapter_for(replay_config).load()
 
 
@@ -542,4 +542,4 @@ def test_a_field_that_resolves_no_reference_at_run_time_is_not_checked(
             )
             element.fields.append(SchemaMappingField(name="bare", reference="KindNobodyLoads"))
 
-    _adapter_for(replay_config).load()  # no ForwardConfigurationError
+    _adapter_for(replay_config).load()  # no InvalidConfiguration

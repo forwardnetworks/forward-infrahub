@@ -13,10 +13,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from forward_sdk import ForwardError, ForwardNotFoundError
-
 from forward_infrahub.ports import (
     QUERY_FILENAMES,
+    ForwardCallFailed,
+    ForwardCallNotFound,
     ForwardPort,
     QueryCataloguePort,
     library_path,
@@ -75,12 +75,12 @@ def audit(
         path = library_path(directory, filename)
         try:
             committed = forward.library_source(path)
-        except ForwardNotFoundError:
+        except ForwardCallNotFound:
             # Nothing at that path, or nothing readable there. Either way the
             # answer for an operator is the same: publish it.
             entries.append(AuditEntry(filename, path, MISSING))
             continue
-        except ForwardError as exc:
+        except ForwardCallFailed as exc:
             # We could not ask, which is different from having asked and
             # found nothing.
             entries.append(AuditEntry(filename, path, UNAVAILABLE, str(exc)))

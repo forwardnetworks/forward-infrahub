@@ -13,8 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from forward_infrahub.forward_client import ForwardSdkAdapter, connect
-from forward_infrahub.ports import ForwardPort, QueryCataloguePort, RowStorePort
-from forward_infrahub.queries import BundledQueries
+from forward_infrahub.ports import (
+    ForwardPort,
+    QueryCataloguePort,
+    QueryContractReader,
+    RowStorePort,
+)
+from forward_infrahub.queries import BundledQueries, SdkQueryContractReader
 from forward_infrahub.replay import ReplayClient
 from forward_infrahub.rowcache import RowCache
 from forward_infrahub.settings import AdapterSettings
@@ -49,3 +54,8 @@ def row_store(directory: str | Path, sync_name: str) -> RowStorePort:
 def query_catalogue() -> QueryCataloguePort:
     """The query sources: the bundled queries, and files a mapping names."""
     return BundledQueries()
+
+
+def query_contract_reader() -> QueryContractReader:
+    """What reads a query's contract: its version and the columns its select blocks produce."""
+    return SdkQueryContractReader()

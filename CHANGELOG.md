@@ -4,6 +4,18 @@
 
 ### Changed
 
+- The package owns its errors. Everything it raises derives from
+  `forward_infrahub.exceptions.ForwardInfrahubError` (`InvalidConfiguration`,
+  `ForwardCallFailed`, `ForwardCallNotFound`, `ForwardCallPagingFailed`, ...), and the
+  Forward SDK's errors are translated at the edge. **Code that caught
+  `forward_sdk.ForwardError` to handle this package's errors must catch
+  `ForwardInfrahubError` instead.**
+- `check_contracts` and `contract_problems` now take a contract reader as their last
+  argument (`ports.QueryContractReader`; `queries.SdkQueryContractReader` is the SDK-backed
+  one), so the core logic no longer imports the SDK. Callers outside this package must pass one.
+- The domain layer imports nothing outside the project and the standard library: the SDK's
+  query reference, enums and helpers are used only by the adapters, use cases and ports. This
+  is enforced in the test suite.
 - Relicensed from the Functional Source License 1.1 to the Fair Core License 1.0,
   both with an Apache-2.0 future license (`FCL-1.0-ALv2`, declared in package
   metadata as `LicenseRef-FCL-1.0-ALv2` since it has no SPDX id). Earlier

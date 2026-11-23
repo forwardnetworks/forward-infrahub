@@ -18,7 +18,7 @@ from typing import Any, ClassVar, Literal, TypeAlias
 
 from diffsync import Adapter, DiffSyncModel
 from diffsync.exceptions import ObjectNotFound
-from forward_sdk import ForwardConfigurationError, ForwardError
+from forward_sdk.nqe import QueryRef
 from infrahub_sync import (
     DiffSyncMixin,
     DiffSyncModelMixin,
@@ -37,10 +37,12 @@ from forward_infrahub.ports import (
     GENERIC_PEERS,
     AugmentContext,
     Baseline,
+    ForwardCallFailed,
     ForwardCloudScope,
     ForwardDeviceScope,
     ForwardLoadError,
     ForwardSafetyError,
+    InvalidConfiguration,
     ResolvedQuery,
     TableRef,
     apply_diff,
@@ -145,7 +147,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self.fetch_reason = ""
 
         self._runner: QueryRunner | None = None
-        self._queries: dict[str, ResolvedQuery] = {}
+        self._queries: dict[str, ResolvedQuery[QueryRef]] = {}
         #: Prepared rows per mapping entry, keyed by the entry's identity
         #: because one kind may be mapped by more than one entry.
         self._tables: dict[int, list[Row]] = {}
@@ -194,7 +196,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                     continue
                 peers = GENERIC_PEERS.get(field.reference, (field.reference,))
                 if not any(kind in loaded for kind in peers):
-                    raise ForwardConfigurationError(
+                    raise InvalidConfiguration(
                         f"{element.name}.{field.name} references {field.reference}, but nothing "
                         f"loads {field.reference}, so every {element.name} row that names one "
                         "would be skipped. "
@@ -324,7 +326,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             else:
                 try:
                     entries = self._runner.diff(query, baseline.snapshot_id, self.snapshot.id)
-                except ForwardError as exc:
+                except ForwardCallFailed as exc:
                     # A whole table read fresh is always right; a diff that
                     # failed is not. Say so, and read it whole.
                     logger.warning(

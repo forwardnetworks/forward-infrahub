@@ -110,7 +110,6 @@ def test_a_query_that_ends_in_an_execution_error_fails_the_load(client: ForwardC
     from forward_sdk import ForwardExecutionError
 
     from forward_infrahub.exceptions import ForwardLoadError
-    from forward_infrahub.fetch import ResolvedQuery  # noqa: F401
 
     class _Nqe:
         def query(self, ref: object, **kwargs: object) -> list[dict[str, object]]:
@@ -118,4 +117,7 @@ def test_a_query_that_ends_in_an_execution_error_fails_the_load(client: ForwardC
 
     runner = _runner(_Nqe())
     with pytest.raises(ForwardLoadError, match="failed"):
-        runner._fetch_shard("select 1", ["a"], "net-1", "q")  # type: ignore[attr-defined]
+        # A source with the device loop every shardable query opens with, so it can be
+        # sharded and the query actually runs (a source without it is refused first).
+        source = "foreach device in network.devices\nselect 1"
+        runner._fetch_shard(source, ["a"], "net-1", "q")  # type: ignore[attr-defined]

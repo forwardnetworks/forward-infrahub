@@ -7,11 +7,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from forward_sdk import ForwardConfigurationError, ForwardError
 from forward_sdk.nqe.where import enum_one_of, one_of
 
 from forward_infrahub.nqe_types import DEVICE_TYPE, VENDOR
-from forward_infrahub.ports import ForwardPort
+from forward_infrahub.ports import ForwardCallFailed, ForwardPort, InvalidConfiguration
 from forward_infrahub.scope import scope_token
 from forward_infrahub.settings import LATEST_COLLECTED, LATEST_PROCESSED, AdapterSettings
 
@@ -122,7 +121,7 @@ def resolve_snapshot(
     if selector == LATEST_PROCESSED:
         snapshot_id = forward.latest_processed_snapshot(network_id)
         if not snapshot_id:
-            raise ForwardConfigurationError(f"network {network_id} has no processed snapshot")
+            raise InvalidConfiguration(f"network {network_id} has no processed snapshot")
     elif selector == LATEST_COLLECTED:
         snapshot_id = forward.latest_collected_snapshot(
             network_id,
@@ -135,7 +134,7 @@ def resolve_snapshot(
     try:
         metrics = forward.snapshot_metrics(snapshot_id)
         completeness = completeness_from_metrics(metrics)
-    except ForwardError as exc:
+    except ForwardCallFailed as exc:
         logger.warning("snapshot %s metrics unavailable: %s", snapshot_id, exc)
         completeness = completeness_from_metrics(None, available=False)
 

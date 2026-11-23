@@ -11,9 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
-
-from forward_sdk.nqe import QueryRef
+from typing import Any, Generic, TypeVar
 
 __all__ = [
     "Baseline",
@@ -25,19 +23,23 @@ __all__ = [
 
 Row = dict[str, Any]
 
+RefT = TypeVar("RefT")
+
 
 @dataclass(frozen=True)
-class ResolvedQuery:
-    """One query the run will execute, and whether it can be diffed."""
+class ResolvedQuery(Generic[RefT]):
+    """One query the run will execute, and whether it can be diffed.
+
+    ``ref`` is whatever reference the Forward port runs the query by; the domain only carries it.
+    ``commit_id`` is the commit the reference is pinned to, computed from it when the use case
+    builds this, or empty when it is not pinned. It is the one thing the row-diff logic reads.
+    """
 
     key: str
-    ref: QueryRef
+    ref: RefT
     diff_capable: bool
     label: str
-
-    @property
-    def commit_id(self) -> str:
-        return self.ref.effective_commit_id or ""
+    commit_id: str
 
     @property
     def filename(self) -> str | None:
@@ -86,7 +88,7 @@ class DiffOutcome:
 
 def full_fetch_reason(
     *,
-    queries: Iterable[ResolvedQuery],
+    queries: Iterable[ResolvedQuery[Any]],
     baseline: Baseline | None,
     fingerprint: str,
     incremental: bool,

@@ -16,6 +16,7 @@ from forward_infrahub.nqe_types import (
 )
 from forward_infrahub.queries import (
     QUERY_FILENAMES,
+    SdkQueryContractReader,
     all_query_sources,
     read_query_execution_source,
     read_query_source,
@@ -26,7 +27,7 @@ from .conftest import EXAMPLE_DIR
 
 
 def test_every_bundled_query_matches_its_contract() -> None:
-    assert check_contracts(all_query_sources()) == []
+    assert check_contracts(all_query_sources(), SdkQueryContractReader()) == []
 
 
 def test_every_contract_has_a_file() -> None:

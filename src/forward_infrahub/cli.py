@@ -23,9 +23,15 @@ import httpx
 import yaml
 from forward_sdk import ForwardError
 
-from forward_infrahub.composition_root import build_client, forward_port, query_catalogue
+from forward_infrahub.composition_root import (
+    build_client,
+    forward_port,
+    query_catalogue,
+    query_contract_reader,
+)
 from forward_infrahub.ports import (
     QUERY_FILENAMES,
+    ForwardInfrahubError,
     ForwardPort,
     __version__,
     check_contracts,
@@ -143,7 +149,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             # The boundary v3 asks for: proof that this process still holds the
             # right to write, checked before every operation it dispatches.
             if not lock.is_locked:
-                raise ForwardError("the apply lock was lost; nothing further was written")
+                raise ForwardInfrahubError("the apply lock was lost; nothing further was written")
 
         result = execute_run(
             run.instance,
@@ -200,7 +206,7 @@ def cmd_check_identities(args: argparse.Namespace) -> int:
 def cmd_check_contracts(args: argparse.Namespace) -> int:
     catalogue = query_catalogue()
     sources = [(name, catalogue.bundled_source(name)) for name in QUERY_FILENAMES]
-    problems = check_contracts(sources)
+    problems = check_contracts(sources, query_contract_reader())
     for problem in problems:
         print(problem)
     if problems:
@@ -336,7 +342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     handler: Any = args.handler
     try:
         result: int = handler(args)
-    except ForwardError as exc:
+    except (ForwardInfrahubError, ForwardError) as exc:
         # An expired password or an unreachable appliance is an ordinary
         # operating condition, not a defect in this tool. Reporting it as a
         # traceback through SDK internals buries the one line that says what

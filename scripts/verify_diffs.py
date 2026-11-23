@@ -19,11 +19,16 @@ import sys
 import time
 from typing import Any
 
-from forward_sdk import ForwardError
 from forward_sdk.nqe import QueryRef
 
 from forward_infrahub.composition_root import build_client, forward_port, query_catalogue
-from forward_infrahub.ports import QUERY_FILENAMES, apply_diff, primary_key_columns, query_stem
+from forward_infrahub.ports import (
+    QUERY_FILENAMES,
+    ForwardCallFailed,
+    apply_diff,
+    primary_key_columns,
+    query_stem,
+)
 from forward_infrahub.settings import AdapterSettings
 
 
@@ -54,7 +59,7 @@ def main(argv: list[str]) -> int:
                 rows_before = forward.run_query(ref, network_id=network, snapshot_id=before)
                 rows_after = forward.run_query(ref, network_id=network, snapshot_id=after)
                 entries = forward.diff_query(ref, before=before, after=after)
-            except ForwardError as exc:
+            except ForwardCallFailed as exc:
                 print(f"  ERROR {stem:24} {str(exc)[:100]!r}")
                 problems += 1
                 continue

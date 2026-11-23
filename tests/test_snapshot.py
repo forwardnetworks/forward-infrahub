@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from forward_sdk import ForwardConfigurationError, ForwardError
+from forward_sdk import ForwardError
 
+from forward_infrahub.exceptions import InvalidConfiguration
 from forward_infrahub.forward_client import ForwardSdkAdapter
 from forward_infrahub.settings import AdapterSettings
 from forward_infrahub.snapshot import (
@@ -89,7 +90,7 @@ def test_an_explicit_id_is_used_as_given() -> None:
 def test_a_network_with_no_processed_snapshot_is_an_error() -> None:
     snapshots = FakeSnapshots()
     snapshots.latest_processed_id = lambda network_id: None  # type: ignore[method-assign]
-    with pytest.raises(ForwardConfigurationError, match="no processed snapshot"):
+    with pytest.raises(InvalidConfiguration, match="no processed snapshot"):
         resolve("latestProcessed", snapshots)
 
 

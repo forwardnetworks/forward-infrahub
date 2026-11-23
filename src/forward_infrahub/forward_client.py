@@ -10,13 +10,20 @@ in the package touches the SDK's client.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any
 
-from forward_sdk import ForwardClient, ForwardConfigurationError
+from forward_sdk import ForwardClient, ForwardError, ForwardNotFoundError, ForwardPaginationError
 from forward_sdk.nqe import QueryRef
 
-from forward_infrahub.ports import Row
+from forward_infrahub.ports import (
+    ForwardCallFailed,
+    ForwardCallNotFound,
+    ForwardCallPagingFailed,
+    InvalidConfiguration,
+    Row,
+)
 from forward_infrahub.settings import (
     ENV_PASSWORD,
     ENV_URL,
@@ -26,45 +33,70 @@ from forward_infrahub.settings import (
 )
 
 
+@contextmanager
+def translating() -> Iterator[None]:
+    """Raise the package's error for any error the SDK raises inside the block.
+
+    The message is the SDK error's own and the SDK error is the cause. Only the two failures a
+    caller acts on get their own class; everything else is a generic call failure.
+    """
+    try:
+        yield
+    except ForwardError as exc:
+        if isinstance(exc, ForwardNotFoundError):
+            raise ForwardCallNotFound(str(exc)) from exc
+        if isinstance(exc, ForwardPaginationError):
+            raise ForwardCallPagingFailed(str(exc)) from exc
+        raise ForwardCallFailed(str(exc)) from exc
+
+
 class ForwardSdkAdapter:
-    """The Forward port over an SDK-shaped client."""
+    """The Forward port over an SDK-shaped client; the SDK's errors become the package's."""
 
     def __init__(self, client: Any) -> None:
         self.client = client
 
     def run_query(self, ref: QueryRef, **options: Any) -> list[Row]:
-        return list(self.client.nqe.query(ref, **options))
+        with translating():
+            return list(self.client.nqe.query(ref, **options))
 
     def diff_query(self, ref: QueryRef, *, before: str, after: str, **options: Any) -> list[Any]:
-        return list(self.client.nqe.diff(ref, before=before, after=after, **options))
+        with translating():
+            return list(self.client.nqe.diff(ref, before=before, after=after, **options))
 
     def resolve_query(self, ref: QueryRef) -> QueryRef:
-        resolved: QueryRef = self.client.nqe.resolve(ref)
+        with translating():
+            resolved: QueryRef = self.client.nqe.resolve(ref)
         return resolved
 
     def library_source(self, path: str) -> str:
-        return str(self.client.nqe.repo.source(path))
+        with translating():
+            return str(self.client.nqe.repo.source(path))
 
     def publish_query(self, files: Mapping[str, str], **options: Any) -> Any:
-        return self.client.nqe.repo.publish(files, **options)
+        with translating():
+            return self.client.nqe.repo.publish(files, **options)
 
     def latest_processed_snapshot(self, network_id: str) -> str | None:
-        snapshot: str | None = self.client.snapshots.latest_processed_id(network_id)
+        with translating():
+            snapshot: str | None = self.client.snapshots.latest_processed_id(network_id)
         return snapshot
 
     def latest_collected_snapshot(self, network_id: str, **options: Any) -> str:
-        snapshot: str = self.client.snapshots.latest_collected_id(network_id, **options)
+        with translating():
+            snapshot: str = self.client.snapshots.latest_collected_id(network_id, **options)
         return snapshot
 
     def snapshot_metrics(self, snapshot_id: str) -> Any:
-        return self.client.snapshots.metrics(snapshot_id)
+        with translating():
+            return self.client.snapshots.metrics(snapshot_id)
 
 
 def connect(settings: AdapterSettings) -> ForwardClient:
     """The SDK's client for the settings, the environment filling what they leave unset."""
     url = settings.url or os.environ.get(ENV_URL)
     if not url:
-        raise ForwardConfigurationError(f"url is required: set source.settings.url or {ENV_URL}")
+        raise InvalidConfiguration(f"url is required: set source.settings.url or {ENV_URL}")
 
     verify: bool | str = settings.verify_ssl
     if settings.verify_ssl is True and os.environ.get(ENV_VERIFY_TLS, "").lower() in {
@@ -74,13 +106,14 @@ def connect(settings: AdapterSettings) -> ForwardClient:
     }:
         verify = False
 
-    return ForwardClient(
-        url,
-        username=settings.username or os.environ.get(ENV_USERNAME),
-        password=settings.password or os.environ.get(ENV_PASSWORD),
-        verify=verify,
-        timeout=settings.timeout,
-        retries=settings.retries,
-        network_id=settings.resolved_network_id(),
-        user_agent=settings.user_agent,
-    )
+    with translating():
+        return ForwardClient(
+            url,
+            username=settings.username or os.environ.get(ENV_USERNAME),
+            password=settings.password or os.environ.get(ENV_PASSWORD),
+            verify=verify,
+            timeout=settings.timeout,
+            retries=settings.retries,
+            network_id=settings.resolved_network_id(),
+            user_agent=settings.user_agent,
+        )

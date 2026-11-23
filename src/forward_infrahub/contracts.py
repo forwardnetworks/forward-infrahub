@@ -2,20 +2,21 @@
 
 Each bundled ``.nqe`` file produces a fixed set of columns. The adapter, the
 example ``config.yml`` and the tests all rely on these names, so they are
-declared once here and checked against the query source by
-``forward_sdk.nqe.files.select_field_sets``.
+declared once here and checked against the query source by a ``QueryContractReader``,
+which reads a query's contract version and select blocks. The reader comes from outside
+(an adapter backed by the Forward SDK), so this module imports nothing from the SDK.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-
-from forward_sdk.nqe.files import contract_version, missing_fields, select_field_sets
+from collections.abc import Iterable, Sequence
+from typing import Protocol, runtime_checkable
 
 __all__ = [
     "QUERY_CONTRACT_FIELDS",
     "QUERY_FILENAMES",
+    "QueryContractReader",
     "check_contracts",
     "library_path",
     "primary_key_columns",
@@ -23,6 +24,24 @@ __all__ = [
 ]
 
 CONTRACT_VERSION = "v3-infrahub"
+
+
+@runtime_checkable
+class QueryContractReader(Protocol):
+    """Reads what a query's source declares and produces."""
+
+    def contract_version(self, source: str) -> str | None:
+        """The ``@contract-version`` recorded in the source, if any."""
+        ...
+
+    def missing_fields(self, source: str, expected: Sequence[str]) -> Sequence[str]:
+        """The expected column names that no ``select`` block produces."""
+        ...
+
+    def select_field_sets(self, source: str) -> Sequence[Sequence[str]]:
+        """The field names of each ``select { ... }`` block."""
+        ...
+
 
 PRIMARY_KEY_RE = re.compile(r"^[ \t]*@primaryKey\(([^)]*)\)", re.MULTILINE)
 
@@ -147,7 +166,7 @@ def primary_key_columns(source: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in match.group(1).split(",") if part.strip())
 
 
-def contract_problems(filename: str, source: str) -> list[str]:
+def contract_problems(filename: str, source: str, reader: QueryContractReader) -> list[str]:
     """Everything wrong with one bundled query, as human-readable strings."""
     problems: list[str] = []
     expected = QUERY_CONTRACT_FIELDS.get(filename)
@@ -165,23 +184,22 @@ def contract_problems(filename: str, source: str) -> list[str]:
         problems.append(f"{filename}: parameterised (@query) queries cannot be diffed")
     if source.rstrip().endswith(";"):
         problems.append(f"{filename}: must not end with ';'")
-    if contract_version(source) != CONTRACT_VERSION:
-        problems.append(
-            f"{filename}: @contract-version {contract_version(source)!r} != {CONTRACT_VERSION!r}"
-        )
-    missing = missing_fields(source, expected)
+    version = reader.contract_version(source)
+    if version != CONTRACT_VERSION:
+        problems.append(f"{filename}: @contract-version {version!r} != {CONTRACT_VERSION!r}")
+    missing = reader.missing_fields(source, expected)
     if missing:
         problems.append(f"{filename}: no select block produces {list(missing)}")
-    if not any(set(expected) <= set(block) for block in select_field_sets(source)):
+    if not any(set(expected) <= set(block) for block in reader.select_field_sets(source)):
         problems.append(f"{filename}: no single select block produces every contract column")
     return problems
 
 
-def check_contracts(sources: Iterable[tuple[str, str]]) -> list[str]:
+def check_contracts(sources: Iterable[tuple[str, str]], reader: QueryContractReader) -> list[str]:
     """Run :func:`contract_problems` over ``(filename, source)`` pairs."""
     problems: list[str] = []
     for filename, source in sources:
-        problems.extend(contract_problems(filename, source))
+        problems.extend(contract_problems(filename, source, reader))
     return problems
 
 

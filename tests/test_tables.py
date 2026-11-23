@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from forward_sdk import ForwardConfigurationError
 
+from forward_infrahub.exceptions import InvalidConfiguration
 from forward_infrahub.settings import AdapterSettings
 from forward_infrahub.tables import (
     TABLES,
@@ -47,7 +47,7 @@ def test_escape_hatches_parse(mapping: str) -> None:
     ],
 )
 def test_bad_mappings_say_what_is_wrong(mapping: str, match: str) -> None:
-    with pytest.raises(ForwardConfigurationError, match=match):
+    with pytest.raises(InvalidConfiguration, match=match):
         parse_mapping(mapping)
 
 

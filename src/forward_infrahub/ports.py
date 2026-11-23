@@ -16,12 +16,21 @@ from forward_sdk.nqe import QueryRef
 from forward_infrahub import __version__
 from forward_infrahub.contracts import (
     QUERY_FILENAMES,
+    QueryContractReader,
     check_contracts,
     library_path,
     primary_key_columns,
     query_stem,
 )
-from forward_infrahub.exceptions import ForwardLoadError, ForwardSafetyError
+from forward_infrahub.exceptions import (
+    ForwardCallFailed,
+    ForwardCallNotFound,
+    ForwardCallPagingFailed,
+    ForwardInfrahubError,
+    ForwardLoadError,
+    ForwardSafetyError,
+    InvalidConfiguration,
+)
 from forward_infrahub.filters import CUSTOM_FILTERS
 from forward_infrahub.identity import check_identities
 from forward_infrahub.rowdiff import (
@@ -49,12 +58,18 @@ __all__ = [
     "QUERY_FILENAMES",
     "AugmentContext",
     "Baseline",
+    "ForwardCallFailed",
+    "ForwardCallNotFound",
+    "ForwardCallPagingFailed",
     "ForwardCloudScope",
     "ForwardDeviceScope",
+    "ForwardInfrahubError",
     "ForwardLoadError",
     "ForwardPort",
     "ForwardSafetyError",
+    "InvalidConfiguration",
     "QueryCataloguePort",
+    "QueryContractReader",
     "ResolvedQuery",
     "Row",
     "RowStorePort",

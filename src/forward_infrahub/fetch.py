@@ -8,14 +8,18 @@ from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from forward_sdk import ForwardError, ForwardNotFoundError, ForwardPaginationError
+from forward_sdk import ForwardConfigurationError
 from forward_sdk.nqe import PageGuards, QueryRef, where
 from forward_sdk.nqe.files import strip_primary_key
 
 from forward_infrahub.ports import (
+    ForwardCallFailed,
+    ForwardCallNotFound,
+    ForwardCallPagingFailed,
     ForwardLoadError,
     ForwardPort,
     ForwardSafetyError,
+    InvalidConfiguration,
     QueryCataloguePort,
     ResolvedQuery,
     Row,
@@ -45,16 +49,35 @@ def _ref_for(
 ) -> tuple[QueryRef, str]:
     """The unresolved reference for an execution key, plus a label for messages."""
     scheme, _, value = key.partition(":")
-    if scheme == "file":
-        return QueryRef.by_path(library_path(settings.query_directory, value)), value
-    if scheme == "nqe-path":
-        return QueryRef.by_path(value), value
-    if scheme == "nqe-id":
-        query_id, _, commit = value.partition("@")
-        return QueryRef.by_id(query_id, commit_id=commit or None), value
-    if scheme == "nqe-file":
-        return QueryRef.inline(catalogue.file_source(value)), value
+    try:
+        if scheme == "file":
+            return QueryRef.by_path(library_path(settings.query_directory, value)), value
+        if scheme == "nqe-path":
+            return QueryRef.by_path(value), value
+        if scheme == "nqe-id":
+            query_id, _, commit = value.partition("@")
+            by_id = QueryRef.by_id(query_id, commit_id=commit or None)
+            # The SDK checks the commit only when it is read; read it now, so an abbreviated
+            # hash is refused here with the rest of the reference errors.
+            _ = by_id.effective_commit_id
+            return by_id, value
+        if scheme == "nqe-file":
+            return QueryRef.inline(catalogue.file_source(value)), value
+    except ForwardConfigurationError as exc:
+        # The SDK refuses a reference it cannot use (an empty path, an abbreviated commit).
+        raise InvalidConfiguration(str(exc)) from exc
     raise ForwardLoadError(f"cannot build a query reference for {key!r}")
+
+
+def _commit_of(ref: QueryRef) -> str:
+    """The commit a reference is pinned to, or empty when it is not pinned.
+
+    The SDK drops ``head`` and refuses an abbreviated hash; the latter is a configuration error.
+    """
+    try:
+        return ref.effective_commit_id or ""
+    except ForwardConfigurationError as exc:
+        raise InvalidConfiguration(str(exc)) from exc
 
 
 def resolve_queries(
@@ -62,7 +85,7 @@ def resolve_queries(
     keys: Iterable[str],
     settings: AdapterSettings,
     catalogue: QueryCataloguePort,
-) -> dict[str, ResolvedQuery]:
+) -> dict[str, ResolvedQuery[QueryRef]]:
     """Resolve every execution key to a runnable query reference.
 
     A bundled query is preferred by library path, because a published query can
@@ -70,16 +93,16 @@ def resolve_queries(
     published yet, ``query_mode: auto`` falls back to running the bundled source
     inline and says so; ``published`` refuses instead.
     """
-    resolved: dict[str, ResolvedQuery] = {}
+    resolved: dict[str, ResolvedQuery[QueryRef]] = {}
     for key in keys:
         ref, label = _ref_for(key, settings, catalogue)
         if ref.mode == "text":
-            resolved[key] = ResolvedQuery(key, ref, diff_capable=False, label=label)
+            resolved[key] = ResolvedQuery(key, ref, False, label, _commit_of(ref))
             continue
         try:
             runnable = forward.resolve_query(ref)
-            resolved[key] = ResolvedQuery(key, runnable, diff_capable=True, label=label)
-        except ForwardNotFoundError:
+            resolved[key] = ResolvedQuery(key, runnable, True, label, _commit_of(runnable))
+        except ForwardCallNotFound:
             if settings.query_mode == "published" or not key.startswith("file:"):
                 raise ForwardSafetyError(
                     f"query {label!r} is not in the Forward library under "
@@ -94,7 +117,7 @@ def resolve_queries(
                 settings.query_directory,
             )
             inline = QueryRef.inline(strip_primary_key(catalogue.bundled_source(filename)))
-            resolved[key] = ResolvedQuery(key, inline, diff_capable=False, label=label)
+            resolved[key] = ResolvedQuery(key, inline, False, label, _commit_of(inline))
     return resolved
 
 
@@ -185,7 +208,7 @@ class QueryRunner:
         with self._lock:
             return dict(self._rows)
 
-    def diff(self, query: ResolvedQuery, before: str, after: str) -> list[Any]:
+    def diff(self, query: ResolvedQuery[QueryRef], before: str, after: str) -> list[Any]:
         """The diff entries of one published query between two snapshots."""
         return list(
             self._forward.diff_query(
@@ -197,12 +220,12 @@ class QueryRunner:
             )
         )
 
-    def run_one(self, query: ResolvedQuery, network_id: str) -> list[Row]:
+    def run_one(self, query: ResolvedQuery[QueryRef], network_id: str) -> list[Row]:
         try:
             rows = self._fetch(query.ref, network_id, label=query.label)
-        except ForwardPaginationError:
+        except ForwardCallPagingFailed:
             rows = self._run_sharded(query, network_id)
-        except ForwardError as exc:
+        except ForwardCallFailed as exc:
             raise ForwardLoadError(f"query {query.label!r} failed: {exc}") from exc
         with self._lock:
             self._rows[query.key] = rows
@@ -226,7 +249,7 @@ class QueryRunner:
             )
         )
 
-    def _run_sharded(self, query: ResolvedQuery, network_id: str) -> list[Row]:
+    def _run_sharded(self, query: ResolvedQuery[QueryRef], network_id: str) -> list[Row]:
         """Re-run a bundled query in device shards small enough to page.
 
         The fallback for a query whose full-network execution could not be
@@ -270,10 +293,13 @@ class QueryRunner:
         self, source: str, names: Sequence[str], network_id: str, label: str
     ) -> list[Row]:
         try:
-            rows = self._fetch(
-                QueryRef.inline(shard_source(source, names)), network_id, label=label
-            )
-        except ForwardPaginationError:
+            shard = QueryRef.inline(shard_source(source, names))
+        except ForwardLoadError as exc:
+            # A source with no device loop cannot be sharded; say which query, as before.
+            raise ForwardLoadError(f"query {label!r} failed: {exc}") from exc
+        try:
+            rows = self._fetch(shard, network_id, label=label)
+        except ForwardCallPagingFailed:
             if len(names) == 1:
                 raise ForwardLoadError(
                     f"query {label!r} could not be paged to completion even for one "
@@ -283,12 +309,12 @@ class QueryRunner:
             return self._fetch_shard(source, names[:half], network_id, label) + self._fetch_shard(
                 source, names[half:], network_id, label
             )
-        except ForwardError as exc:
+        except ForwardCallFailed as exc:
             raise ForwardLoadError(f"query {label!r} failed: {exc}") from exc
         logger.info("fetched %d row(s) from %s for %d device(s)", len(rows), label, len(names))
         return rows
 
-    def run_all(self, queries: Iterable[ResolvedQuery], network_id: str) -> None:
+    def run_all(self, queries: Iterable[ResolvedQuery[QueryRef]], network_id: str) -> None:
         pending = [q for q in queries if not self.has(q.key)]
         if not pending:
             return
