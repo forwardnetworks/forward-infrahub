@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,7 +7,7 @@ name = "forward-infrahub"
 dynamic = ["version"]
 description = "Forward Networks source adapter for infrahub-sync"
 readme = "README.md"
-license = "FSL-1.1-ALv2"
+license = "LicenseRef-FCL-1.0-ALv2"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10,<3.14"
 authors = [{ name = "Forward Networks", email = "support@forwardnetworks.com" }]

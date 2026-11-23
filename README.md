@@ -359,10 +359,11 @@ Predict as a Proposed Change check), ranked, with how each claim is known.
 
 ## License
 
-Functional Source License 1.1, Apache-2.0 future license
-([LICENSE](LICENSE), `FSL-1.1-ALv2`). It is source-available, not open source:
+Fair Core License 1.0, Apache-2.0 future license
+([LICENSE](LICENSE), `FCL-1.0-ALv2`). It is source-available, not open source:
 you can read, run, modify and redistribute it for any purpose except a competing
 commercial product or service, and each release converts to Apache-2.0 two years
-after it is published. Commits up to and including `be85aab` carry
-the MIT License and stay under it. See [NOTICE](NOTICE) for third-party software, which
+after it is published. Earlier releases keep their license: commits up to and
+including `be85aab` carry the MIT License, and commits after it up to and
+including `d6c6411` carry `FSL-1.1-ALv2`. See [NOTICE](NOTICE) for third-party software, which
 keeps its own license.

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Relicensed from the Functional Source License 1.1 to the Fair Core License 1.0,
+  both with an Apache-2.0 future license (`FCL-1.0-ALv2`, declared in package
+  metadata as `LicenseRef-FCL-1.0-ALv2` since it has no SPDX id). Earlier
+  commits keep their license: up to and including `be85aab` MIT, and after it up
+  to and including `d6c6411` `FSL-1.1-ALv2`.
+- The build needs hatchling 1.27 or newer: older releases cannot write the
+  license expression and its files into the package metadata (1.25 fails to
+  build; 1.26 builds with the license in the wrong field and no license files).
+
 ## [0.1.0a5] - 2026-11-20
 
 ### Added
