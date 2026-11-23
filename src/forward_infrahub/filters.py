@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+__all__ = [
+    "CUSTOM_FILTERS",
+]
+
 _VENDOR_OVERRIDES = {
     "f5": "F5",
     "hpe": "HPE",

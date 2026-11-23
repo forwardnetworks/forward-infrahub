@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import re
 
+__all__ = [
+    "normalize_location_key",
+]
+
 # Common USPS street-suffix abbreviations -> a single canonical token. Both the
 # abbreviation and the full word map to the same value so either spelling
 # collapses to one key. Deliberately small and well-known to avoid merging

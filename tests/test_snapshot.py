@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from forward_sdk import ForwardConfigurationError, ForwardError
 
+from forward_infrahub.forward_client import ForwardSdkAdapter
 from forward_infrahub.settings import AdapterSettings
 from forward_infrahub.snapshot import (
     collected_probe_scope,
@@ -45,7 +46,7 @@ class FakeClient:
 
 def resolve(selector: str, snapshots: FakeSnapshots) -> Any:
     settings = AdapterSettings(snapshot_id=selector)
-    return resolve_snapshot(FakeClient(snapshots), settings, "net-1")
+    return resolve_snapshot(ForwardSdkAdapter(FakeClient(snapshots)), settings, "net-1")
 
 
 def test_completeness_reads_every_failure_counter() -> None:
@@ -143,5 +144,5 @@ def test_the_probe_scopes_the_latest_collected_lookup() -> None:
             return "snap-collected"
 
     settings = AdapterSettings(snapshot_id="latestCollected", device_vendors=["cisco"])
-    resolve_snapshot(FakeClient(Recording()), settings, "net-1")
+    resolve_snapshot(ForwardSdkAdapter(FakeClient(Recording())), settings, "net-1")
     assert "Vendor.CISCO" in captured["where"]

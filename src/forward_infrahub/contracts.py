@@ -13,6 +13,15 @@ from collections.abc import Iterable
 
 from forward_sdk.nqe.files import contract_version, missing_fields, select_field_sets
 
+__all__ = [
+    "QUERY_CONTRACT_FIELDS",
+    "QUERY_FILENAMES",
+    "check_contracts",
+    "library_path",
+    "primary_key_columns",
+    "query_stem",
+]
+
 CONTRACT_VERSION = "v3-infrahub"
 
 PRIMARY_KEY_RE = re.compile(r"^[ \t]*@primaryKey\(([^)]*)\)", re.MULTILINE)
@@ -174,3 +183,16 @@ def check_contracts(sources: Iterable[tuple[str, str]]) -> list[str]:
     for filename, source in sources:
         problems.extend(contract_problems(filename, source))
     return problems
+
+
+#: Every bundled query file, in a stable order.
+QUERY_FILENAMES: tuple[str, ...] = tuple(sorted(QUERY_CONTRACT_FIELDS))
+
+
+def query_stem(filename: str) -> str:
+    return filename[: -len(".nqe")] if filename.endswith(".nqe") else filename
+
+
+def library_path(directory: str, filename: str) -> str:
+    """Where a bundled query lives in the org repository once published."""
+    return f"{directory.rstrip('/')}/{query_stem(filename)}"

@@ -15,16 +15,15 @@ diffs a committed query. Reads only; it changes nothing in Forward or Infrahub.
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from typing import Any
 
-from forward_sdk import ForwardClient, ForwardError
+from forward_sdk import ForwardError
 from forward_sdk.nqe import QueryRef
 
-from forward_infrahub.queries import QUERY_FILENAMES, query_primary_key, query_stem
-from forward_infrahub.rowcache import apply_diff
+from forward_infrahub.composition_root import build_client, forward_port, query_catalogue
+from forward_infrahub.ports import QUERY_FILENAMES, apply_diff, primary_key_columns, query_stem
 from forward_infrahub.settings import AdapterSettings
 
 
@@ -37,14 +36,13 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     network, before, after = argv[1:4]
-    directory = AdapterSettings().query_directory.rstrip("/")
-    client = ForwardClient(
-        os.environ["FORWARD_URL"],
-        username=os.environ["FORWARD_USERNAME"],
-        password=os.environ["FORWARD_PASSWORD"],
-        network_id=network,
-        timeout=900,
-    )
+    settings = AdapterSettings(network_id=network, timeout=900)
+    directory = settings.query_directory.rstrip("/")
+    # The client comes from the FORWARD_URL, FORWARD_USERNAME and FORWARD_PASSWORD
+    # environment variables, as a sync's does.
+    client = build_client(settings)
+    forward = forward_port(client)
+    catalogue = query_catalogue()
     problems = 0
     print(f"network {network}: snapshot {before} -> {after}")
     with client:
@@ -53,14 +51,15 @@ def main(argv: list[str]) -> int:
             ref = QueryRef.by_path(f"{directory}/{stem}")
             started = time.time()
             try:
-                rows_before = client.nqe.query(ref, network_id=network, snapshot_id=before)
-                rows_after = client.nqe.query(ref, network_id=network, snapshot_id=after)
-                entries = client.nqe.diff(ref, before=before, after=after)
+                rows_before = forward.run_query(ref, network_id=network, snapshot_id=before)
+                rows_after = forward.run_query(ref, network_id=network, snapshot_id=after)
+                entries = forward.diff_query(ref, before=before, after=after)
             except ForwardError as exc:
                 print(f"  ERROR {stem:24} {str(exc)[:100]!r}")
                 problems += 1
                 continue
-            outcome = apply_diff(rows_before, entries, query_primary_key(filename))
+            primary_key = primary_key_columns(catalogue.bundled_source(filename))
+            outcome = apply_diff(rows_before, entries, primary_key)
             same = canonical(outcome.rows) == canonical(rows_after)
             problems += not same
             print(

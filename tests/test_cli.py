@@ -11,6 +11,7 @@ import pytest
 from forward_sdk import ForwardAuthError, ForwardNotFoundError, ForwardServerError
 
 from forward_infrahub.cli import load_settings, main
+from forward_infrahub.forward_client import ForwardSdkAdapter
 from forward_infrahub.publish import (
     MATCHED,
     MISSING,
@@ -19,7 +20,12 @@ from forward_infrahub.publish import (
     audit,
     normalize_source,
 )
-from forward_infrahub.queries import QUERY_FILENAMES, library_path, read_query_source
+from forward_infrahub.queries import (
+    QUERY_FILENAMES,
+    BundledQueries,
+    library_path,
+    read_query_source,
+)
 
 from .conftest import EXAMPLE_DIR
 
@@ -74,14 +80,21 @@ class FakeClient:
 
 
 def test_audit_reports_a_query_that_was_never_published() -> None:
-    entries = audit(FakeClient({}), "/dir", ["forward_devices.nqe"])
+    entries = audit(
+        ForwardSdkAdapter(FakeClient({})),
+        "/dir",
+        ["forward_devices.nqe"],
+        catalogue=BundledQueries(),
+    )
     assert [e.status for e in entries] == [MISSING]
 
 
 def test_audit_matches_identical_source() -> None:
     name = "forward_devices.nqe"
     published = {library_path("/dir", name): read_query_source(name)}
-    entries = audit(FakeClient(published), "/dir", [name])
+    entries = audit(
+        ForwardSdkAdapter(FakeClient(published)), "/dir", [name], catalogue=BundledQueries()
+    )
     assert [e.status for e in entries] == [MATCHED]
 
 
@@ -89,13 +102,15 @@ def test_audit_catches_a_query_that_drifted() -> None:
     """Present at the path is not the same as being the version we ship."""
     name = "forward_devices.nqe"
     published = {library_path("/dir", name): "foreach d in network.devices select {}"}
-    entries = audit(FakeClient(published), "/dir", [name])
+    entries = audit(
+        ForwardSdkAdapter(FakeClient(published)), "/dir", [name], catalogue=BundledQueries()
+    )
     assert [e.status for e in entries] == [STALE]
 
 
 def test_audit_covers_every_bundled_query() -> None:
     published = {library_path("/dir", n): read_query_source(n) for n in QUERY_FILENAMES}
-    entries = audit(FakeClient(published), "/dir")
+    entries = audit(ForwardSdkAdapter(FakeClient(published)), "/dir", catalogue=BundledQueries())
     assert len(entries) == len(QUERY_FILENAMES)
     assert all(entry.ok for entry in entries)
 
@@ -116,7 +131,9 @@ def test_audit_separates_cannot_ask_from_not_published() -> None:
 
     client = FakeClient({})
     client.nqe.repo = Unreachable({})
-    entries = audit(client, "/dir", ["forward_devices.nqe"])
+    entries = audit(
+        ForwardSdkAdapter(client), "/dir", ["forward_devices.nqe"], catalogue=BundledQueries()
+    )
     assert [e.status for e in entries] == [UNAVAILABLE]
     assert not entries[0].ok
 

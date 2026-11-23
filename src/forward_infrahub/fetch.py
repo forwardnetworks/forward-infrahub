@@ -6,53 +6,43 @@ import logging
 import threading
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from forward_sdk import ForwardError, ForwardNotFoundError, ForwardPaginationError
 from forward_sdk.nqe import PageGuards, QueryRef, where
-from forward_sdk.nqe.files import load_query
+from forward_sdk.nqe.files import strip_primary_key
 
-from forward_infrahub.exceptions import ForwardLoadError, ForwardSafetyError
-from forward_infrahub.queries import (
+from forward_infrahub.ports import (
+    ForwardLoadError,
+    ForwardPort,
+    ForwardSafetyError,
+    QueryCataloguePort,
+    ResolvedQuery,
+    Row,
+    TableRef,
     library_path,
-    query_primary_key,
-    read_query_execution_source,
+    primary_key_columns,
 )
 from forward_infrahub.settings import AdapterSettings
-from forward_infrahub.tables import TableRef
+
+__all__ = [
+    "QueryRunner",
+    "ResolvedQuery",
+    "merge_shards",
+    "resolve_queries",
+    "shard_source",
+]
 
 logger = logging.getLogger(__name__)
-
-Row = dict[str, Any]
 
 #: The exact comprehension line every shardable bundled query opens with. A
 #: shard appends a ``where`` on the device name right after it.
 DEVICE_LOOP = "foreach device in network.devices"
 
 
-@dataclass(frozen=True)
-class ResolvedQuery:
-    """One query the run will execute, and whether it can be diffed."""
-
-    key: str
-    ref: QueryRef
-    diff_capable: bool
-    label: str
-
-    @property
-    def commit_id(self) -> str:
-        return self.ref.effective_commit_id or ""
-
-    @property
-    def filename(self) -> str | None:
-        """The bundled file behind a ``file:`` key, which is what can be sharded."""
-        scheme, _, value = self.key.partition(":")
-        return value if scheme == "file" else None
-
-
-def _ref_for(key: str, settings: AdapterSettings) -> tuple[QueryRef, str]:
+def _ref_for(
+    key: str, settings: AdapterSettings, catalogue: QueryCataloguePort
+) -> tuple[QueryRef, str]:
     """The unresolved reference for an execution key, plus a label for messages."""
     scheme, _, value = key.partition(":")
     if scheme == "file":
@@ -63,12 +53,15 @@ def _ref_for(key: str, settings: AdapterSettings) -> tuple[QueryRef, str]:
         query_id, _, commit = value.partition("@")
         return QueryRef.by_id(query_id, commit_id=commit or None), value
     if scheme == "nqe-file":
-        return QueryRef.inline(load_query(Path(value))), value
+        return QueryRef.inline(catalogue.file_source(value)), value
     raise ForwardLoadError(f"cannot build a query reference for {key!r}")
 
 
 def resolve_queries(
-    client: Any, keys: Iterable[str], settings: AdapterSettings
+    forward: ForwardPort,
+    keys: Iterable[str],
+    settings: AdapterSettings,
+    catalogue: QueryCataloguePort,
 ) -> dict[str, ResolvedQuery]:
     """Resolve every execution key to a runnable query reference.
 
@@ -79,12 +72,12 @@ def resolve_queries(
     """
     resolved: dict[str, ResolvedQuery] = {}
     for key in keys:
-        ref, label = _ref_for(key, settings)
+        ref, label = _ref_for(key, settings, catalogue)
         if ref.mode == "text":
             resolved[key] = ResolvedQuery(key, ref, diff_capable=False, label=label)
             continue
         try:
-            runnable = client.nqe.resolve(ref)
+            runnable = forward.resolve_query(ref)
             resolved[key] = ResolvedQuery(key, runnable, diff_capable=True, label=label)
         except ForwardNotFoundError:
             if settings.query_mode == "published" or not key.startswith("file:"):
@@ -100,7 +93,7 @@ def resolve_queries(
                 filename,
                 settings.query_directory,
             )
-            inline = QueryRef.inline(read_query_execution_source(filename))
+            inline = QueryRef.inline(strip_primary_key(catalogue.bundled_source(filename)))
             resolved[key] = ResolvedQuery(key, inline, diff_capable=False, label=label)
     return resolved
 
@@ -146,8 +139,17 @@ class QueryRunner:
     once, and two workers already overlap fetch with processing.
     """
 
-    def __init__(self, client: Any, settings: AdapterSettings, snapshot_id: str) -> None:
-        self._client = client
+    def __init__(
+        self,
+        forward: ForwardPort,
+        settings: AdapterSettings,
+        snapshot_id: str,
+        *,
+        catalogue: QueryCataloguePort | None = None,
+    ) -> None:
+        self._forward = forward
+        #: The bundled sources a sharded fetch narrows; without it, nothing shards.
+        self._catalogue = catalogue
         self._settings = settings
         self._snapshot_id = snapshot_id
         self._lock = threading.Lock()
@@ -186,7 +188,7 @@ class QueryRunner:
     def diff(self, query: ResolvedQuery, before: str, after: str) -> list[Any]:
         """The diff entries of one published query between two snapshots."""
         return list(
-            self._client.nqe.diff(
+            self._forward.diff_query(
                 query.ref,
                 before=before,
                 after=after,
@@ -213,7 +215,7 @@ class QueryRunner:
         # (``SYSTEM_ERROR``). A timeout, a compile error and a paging stall are
         # not retried here: a stall falls through to sharding in ``run_one``.
         return list(
-            self._client.nqe.query(
+            self._forward.run_query(
                 ref,
                 network_id=network_id,
                 snapshot_id=self._snapshot_id,
@@ -244,8 +246,14 @@ class QueryRunner:
                 f"query {query.label!r} could not be paged to completion and no device "
                 "list is available to shard it"
             )
-        source = read_query_execution_source(filename)
-        primary_key = query_primary_key(filename)
+        if self._catalogue is None:
+            raise ForwardLoadError(
+                f"query {query.label!r} could not be paged to completion and no query "
+                "catalogue is available to shard it"
+            )
+        bundled = self._catalogue.bundled_source(filename)
+        source = strip_primary_key(bundled)
+        primary_key = primary_key_columns(bundled)
         size = self._settings.shard_devices
         shards = [self.device_names[i : i + size] for i in range(0, len(self.device_names), size)]
         logger.warning(

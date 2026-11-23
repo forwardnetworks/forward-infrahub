@@ -13,6 +13,7 @@ import logging
 import os
 from collections import Counter
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from typing import Any, ClassVar, Literal, TypeAlias
 
 from diffsync import Adapter, DiffSyncModel
@@ -26,29 +27,30 @@ from infrahub_sync import (
     SyncConfig,
 )
 
+from forward_infrahub import composition_root
 from forward_infrahub.capabilities import register as register_capabilities
-from forward_infrahub.exceptions import ForwardLoadError, ForwardSafetyError
-from forward_infrahub.fetch import QueryRunner, ResolvedQuery, resolve_queries
-from forward_infrahub.filters import CUSTOM_FILTERS
-from forward_infrahub.queries import query_primary_key
-from forward_infrahub.rowcache import (
-    Baseline,
-    RowCache,
-    apply_diff,
-    full_fetch_reason,
-    now_iso,
-)
-from forward_infrahub.scope import ForwardCloudScope, ForwardDeviceScope, build_scope_fingerprint
-from forward_infrahub.settings import AdapterSettings, build_client
-from forward_infrahub.snapshot import ResolvedSnapshot, resolve_snapshot
-from forward_infrahub.tables import (
+from forward_infrahub.fetch import QueryRunner, resolve_queries
+from forward_infrahub.ports import (
     CLOUD_SCOPE_FILE,
+    CUSTOM_FILTERS,
     DEVICE_SCOPE_FILE,
     GENERIC_PEERS,
     AugmentContext,
+    Baseline,
+    ForwardCloudScope,
+    ForwardDeviceScope,
+    ForwardLoadError,
+    ForwardSafetyError,
+    ResolvedQuery,
     TableRef,
+    apply_diff,
+    build_scope_fingerprint,
+    full_fetch_reason,
     parse_mapping,
+    primary_key_columns,
 )
+from forward_infrahub.settings import AdapterSettings
+from forward_infrahub.snapshot import ResolvedSnapshot, resolve_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +124,10 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self.target = target
         self.config = config
         self.settings = AdapterSettings.model_validate(adapter.settings or {})
-        self.client = build_client(self.settings)
+        #: The Forward client; the Forward port is taken over it when the run starts,
+        #: so whatever client is in place by then is the one used.
+        self.client = composition_root.build_client(self.settings)
+        self.catalogue = composition_root.query_catalogue()
         self.network_id = self.settings.resolved_network_id()
 
         self.snapshot: ResolvedSnapshot | None = None
@@ -132,7 +137,9 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         self.skipped: Counter[str] = Counter()
         #: Devices left out of a list of devices, by the kind and field that named them.
         self.left_out: Counter[str] = Counter()
-        self.cache = RowCache(self.settings.cache_directory, config.name or "forwardnetworks")
+        self.cache = composition_root.row_store(
+            self.settings.cache_directory, config.name or "forwardnetworks"
+        )
         #: How this run got its rows, and why, once ``_prepare`` has run.
         self.fetch_mode: FetchMode = "full"
         self.fetch_reason = ""
@@ -201,7 +208,8 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             return
 
         self._check_references_are_mapped()
-        self.snapshot = resolve_snapshot(self.client, self.settings, self.network_id)
+        forward = composition_root.forward_port(self.client)
+        self.snapshot = resolve_snapshot(forward, self.settings, self.network_id)
         logger.info(
             "snapshot %s (%s) is %s",
             self.snapshot.id,
@@ -213,8 +221,10 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
         elements = self._elements()
         refs = {id(e): parse_mapping(e.mapping) for e in elements}
         keys = {key for ref in refs.values() for key in ref.execution_keys}
-        self._queries = resolve_queries(self.client, sorted(keys), self.settings)
-        self._runner = QueryRunner(self.client, self.settings, self.snapshot.id)
+        self._queries = resolve_queries(forward, sorted(keys), self.settings, self.catalogue)
+        self._runner = QueryRunner(
+            forward, self.settings, self.snapshot.id, catalogue=self.catalogue
+        )
         self.scope_fingerprint = build_scope_fingerprint(
             table_names=sorted(str(ref) for ref in refs.values()),
             device_vendors=self.settings.device_vendors,
@@ -351,7 +361,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             for key in ref.execution_keys:
                 if ref.spec is not None:
                     filename = key.split(":", 1)[1]
-                    keys[key] = query_primary_key(filename)
+                    keys[key] = self._primary_key(filename)
                 else:
                     keys.setdefault(key, self._primary_key_columns(element))
         return keys
@@ -378,7 +388,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
                 snapshot_id=self.snapshot.id,
                 scope_fingerprint=self.scope_fingerprint,
                 query_commits={q.label: q.commit_id for q in self._queries.values()},
-                loaded_at=now_iso(),
+                loaded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 runs_since_full=runs_since_full,
             ),
             self._runner.cached(),
@@ -591,7 +601,7 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
     def _primary_key_columns(self, element: SchemaMappingModel) -> tuple[str, ...]:
         ref = parse_mapping(element.mapping)
         if ref.spec is not None:
-            return ref.spec.primary_key or query_primary_key(ref.spec.query_files[0])
+            return ref.spec.primary_key or self._primary_key(ref.spec.query_files[0])
         if element.identifiers:
             field_map = {f.name: f.mapping for f in element.fields if f.mapping}
             return tuple(field_map[i] for i in element.identifiers if i in field_map)
@@ -642,6 +652,10 @@ class ForwardnetworksAdapter(DiffSyncMixin, Adapter):
             # run whenever Forward happens to list them in another order.
             return sorted(resolved)
         return resolved[0] if resolved else None
+
+    def _primary_key(self, filename: str) -> tuple[str, ...]:
+        """The primary key a bundled query declares."""
+        return primary_key_columns(self.catalogue.bundled_source(filename))
 
     def _peer_exists(self, kind: str, identifier: str) -> bool:
         try:

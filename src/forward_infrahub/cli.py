@@ -23,13 +23,17 @@ import httpx
 import yaml
 from forward_sdk import ForwardError
 
-from forward_infrahub import __version__
-from forward_infrahub.contracts import check_contracts
-from forward_infrahub.identity import check_identities
+from forward_infrahub.composition_root import build_client, forward_port, query_catalogue
+from forward_infrahub.ports import (
+    QUERY_FILENAMES,
+    ForwardPort,
+    __version__,
+    check_contracts,
+    check_identities,
+)
 from forward_infrahub.publish import MATCHED, audit, publish
-from forward_infrahub.queries import all_query_sources
 from forward_infrahub.runtime import prepare
-from forward_infrahub.settings import AdapterSettings, build_client
+from forward_infrahub.settings import AdapterSettings
 from forward_infrahub.snapshot import resolve_snapshot
 
 logger = logging.getLogger("forward_infrahub")
@@ -48,11 +52,12 @@ def load_settings(config_path: Path | None) -> AdapterSettings:
     return AdapterSettings.model_validate(source.get("settings") or {})
 
 
-def _client_and_settings(args: argparse.Namespace) -> tuple[Any, AdapterSettings]:
+def _client_and_settings(args: argparse.Namespace) -> tuple[ForwardPort, AdapterSettings]:
+    """The Forward port for the configured client, and the settings it was built from."""
     settings = load_settings(args.config)
     if args.query_directory:
         settings = settings.model_copy(update={"query_directory": args.query_directory})
-    return build_client(settings), settings
+    return forward_port(build_client(settings)), settings
 
 
 def cmd_models(args: argparse.Namespace) -> int:
@@ -193,12 +198,14 @@ def cmd_check_identities(args: argparse.Namespace) -> int:
 
 
 def cmd_check_contracts(args: argparse.Namespace) -> int:
-    problems = check_contracts(all_query_sources())
+    catalogue = query_catalogue()
+    sources = [(name, catalogue.bundled_source(name)) for name in QUERY_FILENAMES]
+    problems = check_contracts(sources)
     for problem in problems:
         print(problem)
     if problems:
         return 1
-    print(f"{len(all_query_sources())} bundled queries match their contracts")
+    print(f"{len(sources)} bundled queries match their contracts")
     return 0
 
 
@@ -215,7 +222,7 @@ def cmd_resolve_snapshot(args: argparse.Namespace) -> int:
 
 def cmd_audit_queries(args: argparse.Namespace) -> int:
     client, settings = _client_and_settings(args)
-    entries = audit(client, settings.query_directory)
+    entries = audit(client, settings.query_directory, catalogue=query_catalogue())
     for entry in entries:
         print(f"{entry.status:18} {entry.path}{'  ' + entry.detail if entry.detail else ''}")
     unmatched = [e for e in entries if not e.ok]
@@ -235,12 +242,14 @@ def cmd_publish_queries(args: argparse.Namespace) -> int:
     if not args.no_dry_run:
         snapshot_id = resolve_snapshot(client, settings, settings.resolved_network_id()).id
         print(f"validating against snapshot {snapshot_id}")
-    report = publish(client, settings.query_directory, snapshot_id=snapshot_id)
+    report = publish(
+        client, settings.query_directory, catalogue=query_catalogue(), snapshot_id=snapshot_id
+    )
     changed = getattr(report, "changed", None)
     print(
         f"published to {settings.query_directory}" if changed is not False else "already up to date"
     )
-    entries = audit(client, settings.query_directory)
+    entries = audit(client, settings.query_directory, catalogue=query_catalogue())
     unmatched = [e for e in entries if e.status != MATCHED]
     if unmatched:
         for entry in unmatched:

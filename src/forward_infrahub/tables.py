@@ -10,12 +10,24 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from forward_sdk import ForwardConfigurationError
 
 from forward_infrahub.normalize import normalize_location_key
-from forward_infrahub.settings import AdapterSettings
+
+__all__ = [
+    "CLOUD_SCOPE_FILE",
+    "DEVICE_SCOPE_FILE",
+    "GENERIC_PEERS",
+    "TABLES",
+    "AugmentContext",
+    "TableRef",
+    "augment_devices",
+    "augment_locations",
+    "augment_namespaces",
+    "parse_mapping",
+]
 
 Row = dict[str, Any]
 ScopeKind = Literal["name", "device", "scope_devices", "cloud", "none"]
@@ -40,11 +52,21 @@ GENERIC_PEERS: dict[str, tuple[str, ...]] = {
 }
 
 
+class LocationSettings(Protocol):
+    """The settings an augmentation reads: how location names are treated."""
+
+    @property
+    def normalize_location_names(self) -> bool: ...
+
+    @property
+    def unassigned_location_name(self) -> str: ...
+
+
 @dataclass
 class AugmentContext:
     """State shared between augmentations within one load."""
 
-    settings: AdapterSettings
+    settings: LocationSettings
     location_aliases: dict[str, str] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 

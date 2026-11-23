@@ -14,6 +14,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+__all__ = [
+    "CACHE_FORMAT",
+    "ForwardCloudScope",
+    "ForwardDeviceScope",
+    "build_scope_fingerprint",
+    "scope_token",
+]
+
 Row = dict[str, Any]
 
 

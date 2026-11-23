@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from forward_sdk import ForwardError
 
+__all__ = [
+    "ForwardInfrahubError",
+    "ForwardLoadError",
+    "ForwardSafetyError",
+]
+
 
 class ForwardInfrahubError(ForwardError):
     """Base for errors raised by the adapter rather than by Forward."""

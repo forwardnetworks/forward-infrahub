@@ -15,11 +15,22 @@ from typing import Any
 
 from forward_sdk import ForwardError, ForwardNotFoundError
 
-from forward_infrahub.queries import (
+from forward_infrahub.ports import (
     QUERY_FILENAMES,
+    ForwardPort,
+    QueryCataloguePort,
     library_path,
-    read_query_source,
 )
+
+__all__ = [
+    "MATCHED",
+    "MISSING",
+    "STALE",
+    "UNAVAILABLE",
+    "audit",
+    "normalize_source",
+    "publish",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +58,11 @@ class AuditEntry:
 
 
 def audit(
-    client: Any, directory: str, filenames: Iterable[str] = QUERY_FILENAMES
+    forward: ForwardPort,
+    directory: str,
+    filenames: Iterable[str] = QUERY_FILENAMES,
+    *,
+    catalogue: QueryCataloguePort,
 ) -> list[AuditEntry]:
     """Compare what is committed in the library against what this package ships.
 
@@ -59,7 +74,7 @@ def audit(
     for filename in filenames:
         path = library_path(directory, filename)
         try:
-            committed = client.nqe.repo.source(path)
+            committed = forward.library_source(path)
         except ForwardNotFoundError:
             # Nothing at that path, or nothing readable there. Either way the
             # answer for an operator is the same: publish it.
@@ -70,7 +85,7 @@ def audit(
             # found nothing.
             entries.append(AuditEntry(filename, path, UNAVAILABLE, str(exc)))
             continue
-        if normalize_source(committed) == normalize_source(read_query_source(filename)):
+        if normalize_source(committed) == normalize_source(catalogue.bundled_source(filename)):
             entries.append(AuditEntry(filename, path, MATCHED))
         else:
             entries.append(AuditEntry(filename, path, STALE, "committed source differs"))
@@ -78,9 +93,10 @@ def audit(
 
 
 def publish(
-    client: Any,
+    forward: ForwardPort,
     directory: str,
     *,
+    catalogue: QueryCataloguePort,
     snapshot_id: str | None = None,
     filenames: Iterable[str] = QUERY_FILENAMES,
     title: str = "Publish forward-infrahub queries",
@@ -90,8 +106,8 @@ def publish(
     Validation runs against a real snapshot, so a query that no longer compiles
     is caught here rather than by whoever next opens the library.
     """
-    files = {library_path(directory, name): read_query_source(name) for name in filenames}
-    return client.nqe.repo.publish(
+    files = {library_path(directory, name): catalogue.bundled_source(name) for name in filenames}
+    return forward.publish_query(
         files,
         title=title,
         body="Queries bundled with forward-infrahub.",

@@ -66,6 +66,7 @@ def test_every_sdk_error_the_adapter_names_descends_from_forward_error() -> None
 
 def _runner(nqe: object, **settings: object) -> object:
     from forward_infrahub.fetch import QueryRunner
+    from forward_infrahub.forward_client import ForwardSdkAdapter
     from forward_infrahub.settings import AdapterSettings
 
     class _Client:
@@ -73,7 +74,9 @@ def _runner(nqe: object, **settings: object) -> object:
 
     fake = _Client()
     fake.nqe = nqe  # type: ignore[attr-defined]
-    return QueryRunner(fake, AdapterSettings(url="https://fwd.example", **settings), "snap-1")
+    return QueryRunner(
+        ForwardSdkAdapter(fake), AdapterSettings(url="https://fwd.example", **settings), "snap-1"
+    )
 
 
 def test_fetch_passes_only_keywords_the_real_nqe_query_accepts(client: ForwardClient) -> None:

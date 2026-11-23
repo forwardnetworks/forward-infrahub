@@ -5,13 +5,12 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-from forward_sdk import ForwardClient, ForwardConfigurationError
+from forward_sdk import ForwardConfigurationError
 from forward_sdk.nqe.enums import suggest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forward_infrahub import __version__
 from forward_infrahub.nqe_types import DEVICE_TYPE, MEMBER_SOURCES, VENDOR, nqe_members
-from forward_infrahub.replay import ReplayClient
 from forward_infrahub.scope import scope_token
 
 LATEST_PROCESSED = "latestProcessed"
@@ -179,38 +178,3 @@ class AdapterSettings(BaseModel):
                 f"network_id is required: set source.settings.network_id or {ENV_NETWORK_ID}"
             )
         return str(network_id).strip()
-
-
-def build_client(settings: AdapterSettings) -> Any:
-    """Return the Forward client the adapter will use.
-
-    A ``replay_fixture`` yields an offline client that serves rows from a JSON
-    file; otherwise this is a ``forward_sdk.ForwardClient`` configured from the
-    settings, with ``FORWARD_*`` environment variables filling in whatever the
-    settings leave unset.
-    """
-    if settings.replay_fixture:
-        return ReplayClient.from_file(settings.replay_fixture)
-
-    url = settings.url or os.environ.get(ENV_URL)
-    if not url:
-        raise ForwardConfigurationError(f"url is required: set source.settings.url or {ENV_URL}")
-
-    verify: bool | str = settings.verify_ssl
-    if settings.verify_ssl is True and os.environ.get(ENV_VERIFY_TLS, "").lower() in {
-        "0",
-        "false",
-        "no",
-    }:
-        verify = False
-
-    return ForwardClient(
-        url,
-        username=settings.username or os.environ.get(ENV_USERNAME),
-        password=settings.password or os.environ.get(ENV_PASSWORD),
-        verify=verify,
-        timeout=settings.timeout,
-        retries=settings.retries,
-        network_id=settings.resolved_network_id(),
-        user_agent=settings.user_agent,
-    )

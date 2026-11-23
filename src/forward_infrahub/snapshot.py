@@ -11,8 +11,16 @@ from forward_sdk import ForwardConfigurationError, ForwardError
 from forward_sdk.nqe.where import enum_one_of, one_of
 
 from forward_infrahub.nqe_types import DEVICE_TYPE, VENDOR
+from forward_infrahub.ports import ForwardPort
 from forward_infrahub.scope import scope_token
 from forward_infrahub.settings import LATEST_COLLECTED, LATEST_PROCESSED, AdapterSettings
+
+__all__ = [
+    "ResolvedSnapshot",
+    "collected_probe_scope",
+    "completeness_from_metrics",
+    "resolve_snapshot",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -106,15 +114,17 @@ def collected_probe_scope(settings: AdapterSettings) -> str:
     return "\n".join(clauses)
 
 
-def resolve_snapshot(client: Any, settings: AdapterSettings, network_id: str) -> ResolvedSnapshot:
+def resolve_snapshot(
+    forward: ForwardPort, settings: AdapterSettings, network_id: str
+) -> ResolvedSnapshot:
     """Turn the configured selector into one pinned snapshot id plus its completeness."""
     selector = (settings.snapshot_id or LATEST_PROCESSED).strip() or LATEST_PROCESSED
     if selector == LATEST_PROCESSED:
-        snapshot_id = client.snapshots.latest_processed_id(network_id)
+        snapshot_id = forward.latest_processed_snapshot(network_id)
         if not snapshot_id:
             raise ForwardConfigurationError(f"network {network_id} has no processed snapshot")
     elif selector == LATEST_COLLECTED:
-        snapshot_id = client.snapshots.latest_collected_id(
+        snapshot_id = forward.latest_collected_snapshot(
             network_id,
             scan_limit=settings.latest_collected_scan_limit,
             where=collected_probe_scope(settings),
@@ -123,7 +133,7 @@ def resolve_snapshot(client: Any, settings: AdapterSettings, network_id: str) ->
         snapshot_id = selector
 
     try:
-        metrics = client.snapshots.metrics(snapshot_id)
+        metrics = forward.snapshot_metrics(snapshot_id)
         completeness = completeness_from_metrics(metrics)
     except ForwardError as exc:
         logger.warning("snapshot %s metrics unavailable: %s", snapshot_id, exc)

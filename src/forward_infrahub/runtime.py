@@ -30,12 +30,12 @@ except ImportError:  # pragma: no cover - a v3 build that predates the namespace
     ENV_CREDENTIAL_PREFIX = "INFRAHUB_SYNC_CREDENTIAL_"
 
 #: Settings that name a secret, and the environment variable each reads.
-SOURCE_CREDENTIALS = {"username": "FORWARD_USERNAME", "password": "FORWARD_PASSWORD"}
-DESTINATION_CREDENTIALS = {"token": "INFRAHUB_API_TOKEN"}
+_SOURCE_CREDENTIALS = {"username": "FORWARD_USERNAME", "password": "FORWARD_PASSWORD"}
+_DESTINATION_CREDENTIALS = {"token": "INFRAHUB_API_TOKEN"}
 
 #: Keys a registered package does not carry: v3 derives the order itself,
 #: forces its own diffsync flags, and this adapter owns its incremental policy.
-PACKAGE_OMITS = ("order", "diffsync_flags", "incremental", "adapters_path")
+_PACKAGE_OMITS = ("order", "diffsync_flags", "incremental", "adapters_path")
 
 
 class ForwardRuntimeError(ForwardInfrahubError):
@@ -83,14 +83,14 @@ def _credentialise(
 
 def package_payload(config: dict[str, Any]) -> dict[str, Any]:
     """The registered-package form of a sync config, secrets by reference."""
-    configuration = {k: v for k, v in config.items() if k not in PACKAGE_OMITS}
+    configuration = {k: v for k, v in config.items() if k not in _PACKAGE_OMITS}
     source = dict(configuration.get("source") or {})
     destination = dict(configuration.get("destination") or {})
     source["settings"], source_credentials = _credentialise(
-        dict(source.get("settings") or {}), SOURCE_CREDENTIALS, "forward"
+        dict(source.get("settings") or {}), _SOURCE_CREDENTIALS, "forward"
     )
     destination["settings"], destination_credentials = _credentialise(
-        dict(destination.get("settings") or {}), DESTINATION_CREDENTIALS, "infrahub"
+        dict(destination.get("settings") or {}), _DESTINATION_CREDENTIALS, "infrahub"
     )
     configuration["source"] = source
     configuration["destination"] = destination
@@ -101,7 +101,7 @@ def package_payload(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_package(config_path: Path) -> Any:
+def _build_package(config_path: Path) -> Any:
     """The ``ConfigurationPackage`` for a sync config."""
     from infrahub_sync.configuration import ConfigurationPackage
 
@@ -109,7 +109,7 @@ def build_package(config_path: Path) -> Any:
     return ConfigurationPackage.model_validate(package_payload(config))
 
 
-def package_problems(package: Any) -> list[Any]:
+def _package_problems(package: Any) -> list[Any]:
     """Every error-severity finding infrahub-sync reports about a package."""
     from infrahub_sync.configuration import collect_findings
 
@@ -141,8 +141,8 @@ def prepare(config_path: Path, name: str, branch: str) -> PreparedRun:
 
     config = Path(config_path)
     instance = resolve_sync_instance(name, directory=str(config.parent.parent))
-    package = build_package(config)
-    problems = package_problems(package)
+    package = _build_package(config)
+    problems = _package_problems(package)
     if problems:
         detail = "; ".join(f"{f.location}: {f.message}" for f in problems)
         raise ForwardRuntimeError(f"the configuration is not usable: {detail}")

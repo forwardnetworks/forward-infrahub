@@ -17,12 +17,9 @@ from typing import Any
 from forward_sdk import ForwardNotFoundError, ForwardPaginationError
 from forward_sdk.models import NqeDiffEntry
 from forward_sdk.nqe import QueryRef
+from forward_sdk.nqe.files import strip_primary_key
 
-from forward_infrahub.queries import (
-    QUERY_FILENAMES,
-    query_stem,
-    read_query_execution_source,
-)
+from forward_infrahub.ports import QUERY_FILENAMES, QueryCataloguePort, query_stem
 
 Row = dict[str, Any]
 REPLAY_SNAPSHOT = "replay"
@@ -97,9 +94,12 @@ class _ReplayNqe:
             if match:
                 names = [n.strip().strip('"') for n in match.group("names").split(",") if n.strip()]
                 text = SHARD_CLAUSE.sub("", text)
-            for filename in QUERY_FILENAMES:
-                if read_query_execution_source(filename).strip() == text.strip():
-                    return query_stem(filename), names
+            catalogue = self._client.catalogue
+            if catalogue is not None:
+                for filename in QUERY_FILENAMES:
+                    source = strip_primary_key(catalogue.bundled_source(filename))
+                    if source.strip() == text.strip():
+                        return query_stem(filename), names
         raise ForwardNotFoundError(f"replay fixture cannot serve {ref}", status=404)
 
     def execute(self, query: QueryRef | str, **_: Any) -> _ReplayExecution:
@@ -185,7 +185,11 @@ class ReplayClient:
         *,
         unpublished: Iterable[str] = (),
         paging_cap: int | None = None,
+        catalogue: QueryCataloguePort | None = None,
     ) -> None:
+        #: The query sources an inline query is recognised by; the composition
+        #: root supplies them when it wires this client.
+        self.catalogue = catalogue
         self.tables = _stems(fixture)
         self.diffs: dict[str, list[dict[str, Any]]] = {
             _stem_of(k): list(v) for k, v in (fixture.get("diffs") or {}).items()
