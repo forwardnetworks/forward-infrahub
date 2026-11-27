@@ -5,7 +5,7 @@
 ### Changed
 
 - **Now requires infrahub-sync `3.0.0a6`, installed from PyPI** (no git
-  dependency), and `forward-sdk` `0.1.44`. a6 removed the `credentials` block and
+  dependency), and `forward-sdk` `0.1.45`. a6 removed the `credentials` block and
   `$credential` references. The configuration package now holds no secret, and
   secrets are no longer copied into `INFRAHUB_SYNC_CREDENTIAL_*` variables.
   **Breaking:** a config that uses a `credentials` block, `$credential` or a
@@ -13,6 +13,9 @@
   the environment. A run with no Infrahub address or token is refused before
   anything is read. Running the adapter in infrahub-sync's Sync API is not
   supported.
+- `snapshot_id: latestCollected` never picks a prediction, draft or forked
+  snapshot (new in `forward-sdk` `0.1.45`), so it can pick an older snapshot than
+  before. `latest_collected_scan_limit` now counts only the snapshots that qualify.
 - **Breaking:** `--config` must be the `config.yml` that infrahub-sync resolves for
   the sync's name, so the file that is checked is the file that runs.
 - A badly shaped config (an adapter block or its settings that isn't a mapping)

@@ -282,7 +282,7 @@ Python API, so a sync can be run from one machine against a `config.yml`.
 that finished processing halfway through a run would otherwise leave different
 queries describing different networks. `snapshot_id: latestCollected` picks the
 newest snapshot that actually collected something, which is not always the
-newest processed one.
+newest processed one. It never picks a prediction, draft or forked snapshot.
 
 **Every VRF is an IP namespace.** Prefix and address uniqueness in Infrahub is
 per namespace, and the same subnet in two VRFs is ordinary in collected data.
