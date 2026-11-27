@@ -4,6 +4,21 @@
 
 ### Changed
 
+- **Now requires infrahub-sync `3.0.0a6`, installed from PyPI** (no git
+  dependency), and `forward-sdk` `0.1.44`. a6 removed the `credentials` block and
+  `$credential` references. The configuration package now holds no secret, and
+  secrets are no longer copied into `INFRAHUB_SYNC_CREDENTIAL_*` variables.
+  **Breaking:** a config that uses a `credentials` block, `$credential` or a
+  `credential:` name is refused with `InvalidConfiguration`; use plain settings or
+  the environment. A run with no Infrahub address or token is refused before
+  anything is read. Running the adapter in infrahub-sync's Sync API is not
+  supported.
+- **Breaking:** `--config` must be the `config.yml` that infrahub-sync resolves for
+  the sync's name, so the file that is checked is the file that runs.
+- A badly shaped config (an adapter block or its settings that isn't a mapping)
+  is reported as `InvalidConfiguration` instead of a traceback.
+- The Infrahub schema read now uses the same address, token and TLS setting as the
+  run (the environment first, then `config.yml`).
 - The package owns its errors. Everything it raises derives from
   `forward_infrahub.exceptions.ForwardInfrahubError` (`InvalidConfiguration`,
   `ForwardCallFailed`, `ForwardCallNotFound`, `ForwardCallPagingFailed`, ...), and the

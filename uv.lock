@@ -511,9 +511,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "diffsync", specifier = ">=2.1,<3" },
-    { name = "forward-sdk", specifier = "==0.1.41" },
+    { name = "forward-sdk", specifier = "==0.1.44" },
     { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "infrahub-sync", git = "https://github.com/opsmill/infrahub-sync?branch=feature%2Fv3-develop" },
+    { name = "infrahub-sync", specifier = "==3.0.0a6" },
     { name = "pydantic", specifier = ">=2.6,<3" },
     { name = "pyyaml", specifier = ">=6" },
 ]
@@ -531,16 +531,16 @@ dev = [
 
 [[package]]
 name = "forward-sdk"
-version = "0.1.41"
+version = "0.1.44"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/20/4f3908df925ec27d18bbd6b00744ea9a3e7396629398f453fd2adf350cfe/forward_sdk-0.1.41.tar.gz", hash = "sha256:7b30704c8176d78936fe479265d90f969dc3f7bcf590c5397249f98f822df124", size = 1461786, upload-time = "2026-11-20T17:35:37.215Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/04/99779aa7ee93d0e6da6f12cf8c3da7991cc16442254d42df19e91b9d4789/forward_sdk-0.1.44.tar.gz", hash = "sha256:ddc86e60581d9b15cf922ab41cd97064534f1bb5c55cafcd6b89fae7b91eeb8b", size = 1474906, upload-time = "2026-11-26T12:59:55.443Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/d0/1f86479f0f21adef413a9047d3c07c3ff1a17fde7119e6c31efa88851b55/forward_sdk-0.1.41-py3-none-any.whl", hash = "sha256:ffbef2659451f0bcb1a84a575beaa7d6b8eb14edd495c063e07ca2a59a5298a3", size = 720455, upload-time = "2026-11-20T17:35:35.444Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/32/02e7fa244ca582025a12de34aec143125f61578e316b7aa087cf038d6c63/forward_sdk-0.1.44-py3-none-any.whl", hash = "sha256:7f20206f4e1b3d0d1be40e62e86c39ad555a75b8b6f080ee27cd32a9068fe560", size = 733524, upload-time = "2026-11-26T12:59:53.965Z" },
 ]
 
 [[package]]
@@ -654,8 +654,8 @@ ctl = [
 
 [[package]]
 name = "infrahub-sync"
-version = "3.0.0a5"
-source = { git = "https://github.com/opsmill/infrahub-sync?branch=feature%2Fv3-develop#4474349492c55b9c37a7d5a9a5d93b5117cd7758" }
+version = "3.0.0a6"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "diffsync" },
     { name = "filelock", version = "4.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -676,6 +676,10 @@ dependencies = [
     { name = "typer", version = "0.29.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "typing-extensions" },
     { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/40/24c01a1291387ef255a9d4c18866d1933e867f5a62998ce764e615807bc7/infrahub_sync-3.0.0a6.tar.gz", hash = "sha256:4a249a2d889ea1956aa6ac9e5ba5ebc9a926c22d4dd70974a0a1be1e02c425a1", size = 6415058, upload-time = "2026-11-26T14:47:50.836Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/36/24a71487cfef2d47d5c6446c4a13931c7fd052df17e386e2c680a3d7fdd1/infrahub_sync-3.0.0a6-py3-none-any.whl", hash = "sha256:30bc9582c9e751c2c74d98375ae59a4a2950e5011734c37e36ce7cdee8c5c2bd", size = 1011244, upload-time = "2026-11-26T14:47:49.56Z" },
 ]
 
 [[package]]

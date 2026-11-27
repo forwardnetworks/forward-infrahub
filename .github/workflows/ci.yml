@@ -6,9 +6,8 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    # infrahub-sync v3 is an unreleased branch that moves most days. This runs
-    # against whatever is at its head, so upstream drift is reported here
-    # rather than discovered during somebody's sync.
+    # infrahub-sync v3 is still in pre-release. This tests the newest one on PyPI, so a
+    # change there is reported here rather than discovered during somebody's sync.
     - cron: "17 5 * * *"
 
 concurrency:
@@ -66,21 +65,24 @@ jobs:
           PY
 
   upstream:
-    # Keeping pace with infrahub-sync v3 rather than pinning away from it. A
-    # failure here is upstream moving, not this package breaking, so it does
+    # The package pins one infrahub-sync pre-release. This job puts the newest one over
+    # the pin. A failure here is upstream moving, not this package breaking, so it does
     # not gate a pull request.
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
-      - name: Take infrahub-sync from the head of its branch
-        run: uv lock --upgrade-package infrahub-sync
-      - name: Report which commit that is
-        run: uv run python -c "import importlib.metadata as m; print('infrahub-sync', m.version('infrahub-sync'))"
       # Not editable: the registered path resolves adapters from installed
       # distributions only, and an editable install is refused there.
       - run: uv sync --all-groups --no-editable
+      - name: Put the newest infrahub-sync pre-release over the pin
+        # Only infrahub-sync may move, and only it may be a pre-release.
+        run: >
+          uv pip install --prerelease=explicit --upgrade-package infrahub-sync
+          "infrahub-sync>=3.0.0a6"
+      - name: Report which version that is
+        run: uv run --no-sync python -c "import importlib.metadata as m; print('infrahub-sync', m.version('infrahub-sync'))"
       - name: The adapter still resolves through its entry point
         # --no-sync, and before anything else runs: a plain `uv run` re-syncs the
         # project as editable, undoing the --no-editable install above, and the

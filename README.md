@@ -4,11 +4,11 @@ Sync [Forward Networks](https://www.forwardnetworks.com/) into
 [Infrahub](https://github.com/opsmill/infrahub): a source adapter for
 [infrahub-sync](https://github.com/opsmill/infrahub-sync) v3.
 
-> **Status: alpha.** Targets the infrahub-sync v3 alpha, which is not on PyPI
-> yet. Verified against Infrahub 1.12.2 (and, before the release and CVE kinds
-> existed, 1.11.9 and 1.12.1) and infrahub-sync `feature/v3-develop` @ `5c22b69`,
-> on the bundled fixture and on a live Forward network (see
-> [Verified](#verified)).
+> **Status: alpha.** Targets the infrahub-sync v3 pre-release `3.0.0a6`. Verified
+> on 2026-11-26 against Infrahub 1.12.2 and a live Forward network: models, plan,
+> review and apply on a throwaway branch. Earlier builds were also verified on the
+> bundled fixture and, before the release and CVE kinds existed, on Infrahub
+> 1.11.9 and 1.12.1 (see [Verified](#verified)).
 
 Forward collects the network by talking to it. Infrahub records what the
 network is supposed to be. This puts the first into the second, so a device,
@@ -46,9 +46,15 @@ Infrahub as collected rather than as typed in by hand.
 
 ## Verified
 
-On a live Forward demo network of 122 devices (its snapshot reports collection
-failures, so the incomplete-snapshot gate was exercised), into Infrahub 1.12.2,
-with the code in this release:
+On infrahub-sync `3.0.0a6` (2026-11-26), against Infrahub 1.12.2 already holding a
+live Forward demo network, on a throwaway branch: `plan` found 1 object to create
+and 33 no longer reported; `review` verified it; `apply` created the object and
+left the 33 alone; planning again found nothing to create or update.
+
+The figures below were measured with an earlier build on an infrahub-sync
+pre-release before a6, on the same demo network of 122 devices (its snapshot reports
+collection failures, so the incomplete-snapshot gate was exercised), into Infrahub
+1.12.2:
 
 | | |
 | --- | --- |
@@ -90,18 +96,15 @@ versions other than those above (the release and CVE kinds only on 1.12.2).
 
 ## Install
 
-infrahub-sync v3 is unreleased, so it comes from its git branch. Python 3.10 to
-3.13.
+infrahub-sync v3 is still in pre-release. This package pins the one it works with,
+`3.0.0a6`, which comes from PyPI. Python 3.10 to 3.13.
 
 ```bash
-pip install \
-  "infrahub-sync @ git+https://github.com/opsmill/infrahub-sync@feature/v3-develop" \
-  "forward-infrahub @ git+https://github.com/forwardnetworks/forward-infrahub"
+pip install "forward-infrahub @ git+https://github.com/forwardnetworks/forward-infrahub"
 ```
 
-From a checkout of this repo, `uv sync` does the same (the branch is declared
-under `[tool.uv.sources]`), and its dev group carries `infrahubctl` for loading
-the schema.
+From a checkout of this repo, `uv sync` does the same, and its dev group carries
+`infrahubctl` for loading the schema.
 
 The package registers a `forwardnetworks` adapter with infrahub-sync, so
 `config.yml` needs no `adapter:` line.
@@ -310,11 +313,17 @@ result too large to page falls back to fetching in device shards.
 Credentials come from `FORWARD_URL`, `FORWARD_USERNAME`, `FORWARD_PASSWORD` and
 `FORWARD_NETWORK_ID`, the same variables the Forward SDK and the NetBox and
 Nautobot integrations use, and `INFRAHUB_API_TOKEN` for Infrahub. The Infrahub
-address is `destination.settings.url` in `config.yml`. infrahub-sync
-only reads a credential from its own `INFRAHUB_SYNC_CREDENTIAL_` namespace, so
-the adapter republishes the ones you export under that name for the length of the
-run. Everything else lives under `source.settings` in `config.yml`; the example
-lists each option with what it does.
+address is `INFRAHUB_ADDRESS` (or `INFRAHUB_URL`) if set, otherwise
+`destination.settings.url` in `config.yml`; the token is `INFRAHUB_API_TOKEN` if
+set, otherwise `destination.settings.token`. That's the order infrahub-sync uses,
+and both an address and a token are required. `--config` must be the `config.yml`
+that infrahub-sync finds for the sync's name. Everything else lives under
+`source.settings` in `config.yml`; the example lists each option with what it does.
+
+No secret goes into the configuration package that infrahub-sync validates, and
+none is copied into other environment variables. A config that uses a
+`credentials` block, a `$credential` reference or a `credential:` name is refused
+with a message saying what to use instead.
 
 To narrow which devices a sync owns, set `device_vendors`, `device_types` or
 `device_models`. A scoped sync only ever creates and updates, never deletes,

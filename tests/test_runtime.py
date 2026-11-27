@@ -1,92 +1,110 @@
-"""A registered package may only name credentials inside infrahub-sync's namespace."""
+"""The package built from a sync config, and the one transform that needs the engine to prove."""
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from typing import Any
+
 import pytest
-from infrahub_sync.configuration import ConfigurationPackage
-from infrahub_sync.configuration.credentials import ENV_CREDENTIAL_PREFIX
+import yaml
+from infrahub_sync.configuration import parse_configuration_package
+from infrahub_sync.runtime_schema import worker
 
-from forward_infrahub.runtime import package_payload
+from forward_infrahub.exceptions import InvalidConfiguration
+from forward_infrahub.runtime import package_payload, prepare
 
-CONFIG = {
+CONFIG: dict[str, Any] = {
     "name": "from-forwardnetworks",
-    "source": {"name": "forwardnetworks", "settings": {"network_id": "demo"}},
-    "destination": {"name": "infrahub", "settings": {"url": "http://localhost:8000"}},
+    "source": {"name": "forwardnetworks", "settings": {"network_id": "demo", "password": "p-1"}},
+    "destination": {
+        "name": "infrahub",
+        "settings": {"url": "http://localhost:8000", "token": "t-1"},
+    },
     "schema_mapping": [],
 }
 
 
-NAMESPACED = tuple(
-    f"{ENV_CREDENTIAL_PREFIX}{name}"
-    for name in ("FORWARD_USERNAME", "FORWARD_PASSWORD", "INFRAHUB_TOKEN")
-)
-
-
 @pytest.fixture(autouse=True)
-def _no_ambient_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    """package_payload writes os.environ; set-then-delete so teardown removes it."""
-    for name in ("FORWARD_USERNAME", "FORWARD_PASSWORD", "INFRAHUB_API_TOKEN", *NAMESPACED):
-        monkeypatch.setenv(name, "")
+def _no_ambient_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in [k for k in os.environ if k.startswith(("INFRAHUB_", "FORWARD_"))]:
         monkeypatch.delenv(name)
 
 
-def test_every_credential_names_an_environment_variable_inside_the_namespace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("FORWARD_USERNAME", "u")
-    monkeypatch.setenv("FORWARD_PASSWORD", "p")
-    monkeypatch.setenv("INFRAHUB_API_TOKEN", "t")
-
+def test_the_package_holds_no_secret_and_infrahub_sync_parses_it() -> None:
     payload = package_payload(CONFIG)
 
-    identifiers = {c["identifier"] for c in payload["credentials"].values()}
-    assert identifiers
-    assert all(i.startswith(ENV_CREDENTIAL_PREFIX) for i in identifiers)
+    assert "credentials" not in payload
+    assert "p-1" not in str(payload) and "t-1" not in str(payload)
+    assert payload["configuration"]["destination"]["credential"] == "infrahub"
+    parse_configuration_package(payload)
 
 
-def test_the_payload_is_accepted_by_infrahub_sync(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The check that was missing: the engine's own validation, not ours."""
-    monkeypatch.setenv("FORWARD_USERNAME", "u")
-    ConfigurationPackage.model_validate(package_payload(CONFIG))
+def test_building_the_package_changes_neither_the_environment_nor_the_config() -> None:
+    environment, before = dict(os.environ), str(CONFIG)
+
+    package_payload(CONFIG)
+
+    assert dict(os.environ) == environment
+    assert str(CONFIG) == before
 
 
-def test_a_value_exported_under_the_ordinary_name_reaches_the_namespaced_variable(
-    monkeypatch: pytest.MonkeyPatch,
+def test_a_credential_reference_is_refused_with_what_to_do_instead() -> None:
+    source = {"name": "forwardnetworks", "settings": {"password": {"$credential": "x"}}}
+
+    with pytest.raises(InvalidConfiguration, match=r"source\.settings\.password.*Replace it"):
+        package_payload({**CONFIG, "source": source})
+
+
+def _write(root: Path, config: dict[str, Any]) -> Path:
+    path = root / "syncs" / "one" / "config.yml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    return path
+
+
+def test_preparing_a_run_reads_the_schema_through_infrahub_sync(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import os
+    """Everything prepare uses of infrahub-sync is real except the network read."""
+    read: list[str] = []
 
-    monkeypatch.setenv("INFRAHUB_API_TOKEN", "from-the-environment")
+    def schema(package: Any, branch: str) -> dict[str, Any]:
+        read.append(branch)
+        return {}
 
-    payload = package_payload(CONFIG)
+    monkeypatch.setattr(worker, "read_destination_schema_snapshot", schema)
 
-    variable = payload["credentials"]["infrahub-token"]["identifier"]
-    assert os.environ[variable] == "from-the-environment"
+    run = prepare(_write(tmp_path, CONFIG), "from-forwardnetworks", "a-branch")
+
+    assert read == ["a-branch"]
+    assert run.instance.destination.settings == CONFIG["destination"]["settings"]
 
 
-def test_a_stale_namespaced_variable_does_not_beat_this_runs_value(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("change", "place"),
+    [
+        ({"source": "forwardnetworks"}, "source must be a mapping"),
+        ({"source": "no-credential"}, "source must be a mapping"),
+        ({"destination": [1]}, "destination must be a mapping"),
+        ({"source": {"name": "forwardnetworks", "settings": "abc"}}, "source.settings must be"),
+        ({"destination": {"name": "infrahub", "settings": [1]}}, "destination.settings must be"),
+        ({"destination": 5}, "destination must be a mapping"),
+        ({"$credential": "x"}, "the top level"),
+    ],
+)
+def test_a_badly_shaped_config_is_refused_with_its_place(
+    tmp_path: Path, change: dict[str, Any], place: str
 ) -> None:
-    import os
-
-    monkeypatch.setenv(NAMESPACED[2], "left-over-from-another-run")
-    monkeypatch.setenv("INFRAHUB_API_TOKEN", "current")
-
-    payload = package_payload(CONFIG)
-
-    assert os.environ[payload["credentials"]["infrahub-token"]["identifier"]] == "current"
+    with pytest.raises(InvalidConfiguration, match=place):
+        prepare(_write(tmp_path, {**CONFIG, **change}), "from-forwardnetworks", "main")
 
 
-def test_a_literal_value_in_the_config_is_used_in_place_of_the_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import os
+def test_a_yaml_alias_loop_does_not_recurse_forever() -> None:
+    loop: list[Any] = []
+    loop.append(loop)
 
-    monkeypatch.setenv("FORWARD_PASSWORD", "from-the-environment")
-    config = {**CONFIG, "source": {"name": "forwardnetworks", "settings": {"password": "literal"}}}
-
-    payload = package_payload(config)
-
-    assert os.environ[payload["credentials"]["forward-password"]["identifier"]] == "literal"
+    package_payload({**CONFIG, "extra": loop, "schema_mapping": []})
 
 
 def _mac_transform_expression() -> str:
